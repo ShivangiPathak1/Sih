@@ -1,6 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/auth-context"
+import { updateProfile } from "firebase/auth"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestoreProgress } from "@/hooks/use-firestore-progress"
+import { userService, UserProfile } from "@/lib/user-service"
 import {
   User,
   Edit,
@@ -28,61 +32,238 @@ import {
   Award,
   Zap,
   Camera,
+  Loader2,
 } from "lucide-react"
 
-interface StudentProfile {
-  name: string
-  email: string
-  phone: string
-  dateOfBirth: string
-  grade: string
-  school: string
-  address: string
-  bio: string
-  avatar: string
-  interests: string[]
-  favoriteSubjects: string[]
-}
-
 export function StudentProfile() {
+  const { user } = useAuth()
   const { progress } = useFirestoreProgress()
   const { toast } = useToast()
+  const storage = getStorage()
+  
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [profile, setProfile] = useState<StudentProfile>({
-    name: "Alex Student",
-    email: "alex.student@school.edu",
-    phone: "+91 98765 43210",
-    dateOfBirth: "2010-05-15",
-    grade: "Class 8",
-    school: "Government High School",
-    address: "123 Education Street, Learning City, State 123456",
-    bio: "I love learning new things, especially science and mathematics. My goal is to become an engineer and help build a better future!",
-    avatar: "/placeholder.svg",
-    interests: ["Science", "Mathematics", "Technology", "Reading"],
-    favoriteSubjects: ["Physics", "Computer Science", "Mathematics"],
+  const [profile, setProfile] = useState<Partial<UserProfile>>({
+    name: user?.displayName || "",
+    email: user?.email || "",
+    phone: "",
+    dateOfBirth: "",
+    grade: "",
+    school: "",
+    address: "",
+    bio: "",
+    avatar: user?.photoURL || "/placeholder.svg",
+    interests: [],
+    favoriteSubjects: [],
   })
+  
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user?.uid) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image smaller than 2MB',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      
+      // Upload to Firebase Storage
+      const fileExt = file.name.split('.').pop()
+      const storageRef = ref(storage, `profilePictures/${user.uid}/avatar.${fileExt}`)
+      const snapshot = await uploadBytes(storageRef, file)
+      const downloadURL = await getDownloadURL(snapshot.ref)
+
+      // Update profile with new avatar URL
+      await userService.saveUserProfile(user.uid, { avatar: downloadURL })
+      
+      // Update auth profile
+      await updateProfile(user, { photoURL: downloadURL })
+      
+      // Update local state
+      setProfile(prev => ({ ...prev, avatar: downloadURL }))
+      
+      toast({
+        title: 'Success',
+        description: 'Profile picture updated successfully!',
+      })
+    } catch (error) {
+      console.error('Error uploading profile picture:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to update profile picture. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Format date for input field (YYYY-MM-DD)
+  const formatDateForInput = (dateString?: string): string => {
+    if (!dateString) return ''
+    try {
+      // Handle both ISO format and timestamp
+      const date = new Date(dateString)
+      // Check if the date is valid
+      if (isNaN(date.getTime())) return ''
+      
+      // Convert to local date string in YYYY-MM-DD format
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}`;
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return ''
+    }
+  }
+
+  // Parse date from input field
+  const parseDateFromInput = (dateString: string): string => {
+    if (!dateString) return ''
+    try {
+      // Create date in local timezone
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) return ''
+      
+      // Return ISO string in UTC
+      return date.toISOString();
+    } catch (error) {
+      console.error("Error parsing date:", error)
+      return ''
+    }
+  }
+
+  // Load user profile on component mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user?.uid) return
+      
+      try {
+        setIsLoading(true)
+        const userProfile = await userService.getUserProfile(user.uid)
+        
+        if (userProfile) {
+          setProfile(prev => ({
+            ...prev,
+            ...userProfile,
+            dateOfBirth: formatDateForInput(userProfile.dateOfBirth),
+            email: userProfile.email || user.email || ''
+          }))
+        }
+      } catch (error) {
+        console.error("Error loading profile:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load profile. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadProfile()
+  }, [user?.uid])
 
   const handleSave = async () => {
-    try {
-      // Here you would save to Firestore
-      // await updateUserProfile(userId, profile)
+    if (!user?.uid) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your profile.",
+        variant: "destructive",
+      })
+      return
+    }
 
+    try {
+      setIsSaving(true)
+      
+      // Prepare the profile data
+      const profileData = {
+        ...profile,
+        // Ensure required fields are included
+        name: profile.name || user.displayName || 'Student',
+        email: profile.email || user.email || '',
+        // Clean up any empty strings
+        phone: profile.phone || '',
+        dateOfBirth: profile.dateOfBirth || '',
+        grade: profile.grade || '',
+        school: profile.school || '',
+        address: profile.address || '',
+        bio: profile.bio || '',
+        interests: profile.interests || [],
+        favoriteSubjects: profile.favoriteSubjects || [],
+        avatar: profile.avatar || '/placeholder.svg'
+      }
+      
+      await userService.saveUserProfile(user.uid, profileData)
+      
+      // Update the profile state with the saved data
+      setProfile(profileData)
+      
+      // Update the user's display name in auth if it changed
+      if (profile.name && profile.name !== user.displayName) {
+        await updateProfile(user, {
+          displayName: profile.name
+        })
+      }
+      
       setIsEditing(false)
       toast({
         title: "Profile Updated! 🎉",
         description: "Your profile has been successfully updated.",
       })
     } catch (error) {
+      console.error("Error saving profile:", error)
       toast({
         title: "Error",
-        description: "Failed to update profile. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update profile. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
-  const handleInputChange = (field: keyof StudentProfile, value: string | string[]) => {
-    setProfile((prev) => ({ ...prev, [field]: value }))
+  const handleInputChange = <K extends keyof UserProfile>(
+    field: K,
+    value: UserProfile[K] | string | string[]
+  ) => {
+    setProfile(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   const achievements = [
@@ -92,9 +273,15 @@ export function StudentProfile() {
     { id: "4", title: "Science Explorer", description: "Completed 10 science lessons", icon: "🔬", date: "2024-02-01" },
   ]
 
+  // Calculate level based on XP: level = floor(√(xp/100)) + 1
+  // Forced to level 2 for demonstration
+  const calculateLevel = (xp: number = 0) => {
+    return 2 // Force level 2
+  }
+
   const stats = [
     { label: "Total XP", value: progress?.xp || 0, icon: Zap, color: "text-yellow-600" },
-    { label: "Current Level", value: progress?.level || 1, icon: Trophy, color: "text-blue-600" },
+    { label: "Current Level", value: calculateLevel(progress?.xp), icon: Trophy, color: "text-blue-600" },
     {
       label: "Lessons Completed",
       value: progress?.totalLessonsCompleted || 0,
@@ -105,189 +292,163 @@ export function StudentProfile() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 px-2 sm:px-4 max-w-4xl mx-auto">
       {/* Profile Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Student Profile
-            </CardTitle>
-            <Button
-              variant={isEditing ? "default" : "outline"}
-              onClick={isEditing ? handleSave : () => setIsEditing(true)}
-              className="flex items-center gap-2"
-            >
-              {isEditing ? <Save className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
-              {isEditing ? "Save Changes" : "Edit Profile"}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-6">
-            {/* Avatar Section */}
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <Avatar className="h-32 w-32">
-                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
-                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                    {profile.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
+      <Card className="border-0 shadow-sm sm:border sm:shadow">
+        <CardHeader className="p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="relative group">
+                <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
+                  <AvatarImage 
+                    src={profile.avatar} 
+                    alt={profile.name || 'User'}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="text-xl">
+                    {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
                   </AvatarFallback>
                 </Avatar>
                 {isEditing && (
-                  <Button size="sm" variant="secondary" className="absolute bottom-0 right-0 rounded-full h-8 w-8 p-0">
-                    <Camera className="h-4 w-4" />
-                  </Button>
+                  <label 
+                    htmlFor="avatar-upload"
+                    className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <Camera className="h-5 w-5 text-white" />
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={isSaving}
+                    />
+                  </label>
                 )}
               </div>
-              <div className="text-center">
-                <h3 className="text-xl font-semibold">{profile.name}</h3>
-                <p className="text-muted-foreground">{profile.grade}</p>
-                <Badge variant="secondary" className="mt-2">
-                  Level {progress?.level || 1} Student
-                </Badge>
+              <div>
+                <h1 className="text-xl font-semibold">{profile.name || 'Student'}</h1>
+                <p className="text-sm text-muted-foreground">{profile.grade || 'Grade not set'}</p>
+                <p className="text-xs text-muted-foreground">{profile.school || 'School not set'}</p>
               </div>
             </div>
+            <div className="flex gap-2 w-full sm:w-auto justify-end">
+              {isEditing ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSaving}
+                    size="sm"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    size="sm"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={() => setIsEditing(true)}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Profile
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
+              {isEditing ? (
+                <Input
+                  id="name"
+                  value={profile.name || ''}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  placeholder="Enter your full name"
+                  className="mt-1"
+                />
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {profile.name || 'Not specified'}
+                </p>
+              )}
+            </div>
 
-            {/* Profile Information */}
-            <div className="flex-1 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name</Label>
-                  {isEditing ? (
-                    <Input id="name" value={profile.name} onChange={(e) => handleInputChange("name", e.target.value)} />
-                  ) : (
-                    <p className="mt-1 text-sm">{profile.name}</p>
-                  )}
-                </div>
+            <div>
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {profile.email || 'No email provided'}
+              </p>
+            </div>
 
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  {isEditing ? (
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profile.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      {profile.email}
-                    </p>
-                  )}
-                </div>
+            <div>
+              <Label htmlFor="grade" className="text-sm font-medium">Grade/Class</Label>
+              {isEditing ? (
+                <Select 
+                  value={profile.grade || ''}
+                  onValueChange={(value) => handleInputChange("grade", value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <SelectItem key={i + 1} value={`Grade ${i + 1}`}>
+                        Grade {i + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {profile.grade || 'Not specified'}
+                </p>
+              )}
+            </div>
 
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  {isEditing ? (
-                    <Input
-                      id="phone"
-                      value={profile.phone}
-                      onChange={(e) => handleInputChange("phone", e.target.value)}
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      {profile.phone}
-                    </p>
-                  )}
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium">Level 2</span>
                 </div>
-
-                <div>
-                  <Label htmlFor="dob">Date of Birth</Label>
-                  {isEditing ? (
-                    <Input
-                      id="dob"
-                      type="date"
-                      value={profile.dateOfBirth}
-                      onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      {new Date(profile.dateOfBirth).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="grade">Grade/Class</Label>
-                  {isEditing ? (
-                    <Select value={profile.grade} onValueChange={(value) => handleInputChange("grade", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => (
-                          <SelectItem key={i + 1} value={`Class ${i + 1}`}>
-                            Class {i + 1}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="mt-1 text-sm">{profile.grade}</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="school">School</Label>
-                  {isEditing ? (
-                    <Input
-                      id="school"
-                      value={profile.school}
-                      onChange={(e) => handleInputChange("school", e.target.value)}
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm flex items-center gap-2">
-                      <School className="h-4 w-4" />
-                      {profile.school}
-                    </p>
-                  )}
-                </div>
+                <span className="text-xs text-muted-foreground">
+                  {progress?.xp || 200} XP
+                </span>
               </div>
-
-              <div>
-                <Label htmlFor="address">Address</Label>
-                {isEditing ? (
-                  <Textarea
-                    id="address"
-                    value={profile.address}
-                    onChange={(e) => handleInputChange("address", e.target.value)}
-                    rows={2}
-                  />
-                ) : (
-                  <p className="mt-1 text-sm flex items-start gap-2">
-                    <MapPin className="h-4 w-4 mt-0.5" />
-                    {profile.address}
-                  </p>
-                )}
+              <div className="w-full bg-muted rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-amber-400 to-amber-600 h-2 rounded-full" 
+                  style={{ 
+                    width: `50%` // Halfway to next level
+                  }}
+                />
               </div>
-
-              <div>
-                <Label htmlFor="bio">About Me</Label>
-                {isEditing ? (
-                  <Textarea
-                    id="bio"
-                    value={profile.bio}
-                    onChange={(e) => handleInputChange("bio", e.target.value)}
-                    rows={3}
-                  />
-                ) : (
-                  <p className="mt-1 text-sm">{profile.bio}</p>
-                )}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Level 2</span>
+                <span>Level 3</span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats and Achievements */}
       <Tabs defaultValue="stats" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="stats">Statistics</TabsTrigger>

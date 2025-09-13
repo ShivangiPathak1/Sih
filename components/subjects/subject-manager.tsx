@@ -306,8 +306,17 @@ export function SubjectManager() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4">
-              {selectedSubject.materials.map((material, index) => (
+            {selectedSubject.materials.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📚</div>
+                <h3 className="text-lg font-medium text-muted-foreground mb-2">No Study Materials Available</h3>
+                <p className="text-sm text-muted-foreground">
+                  Study materials for this subject are being prepared. Check back soon!
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {selectedSubject.materials.map((material, index) => (
                 <Card
                   key={material.id}
                   className={`transition-all hover:shadow-md ${material.locked ? "opacity-60" : ""}`}
@@ -367,8 +376,9 @@ export function SubjectManager() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -399,8 +409,24 @@ export function SubjectManager() {
       </Card>
 
       {/* Subjects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredSubjects.map((subject) => (
+      {filteredSubjects.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <div className="text-6xl mb-4">📚</div>
+            <h3 className="text-lg font-medium text-muted-foreground mb-2">No Subjects Found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {searchTerm ? `No subjects match "${searchTerm}". Try a different search term.` : "No subjects are currently available."}
+            </p>
+            {searchTerm && (
+              <Button variant="outline" onClick={() => setSearchTerm("")}>
+                Clear Search
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredSubjects.map((subject) => (
           <Card
             key={subject.id}
             className="cursor-pointer transition-all hover:shadow-lg hover:scale-105"
@@ -450,8 +476,9 @@ export function SubjectManager() {
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

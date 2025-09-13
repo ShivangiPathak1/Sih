@@ -370,7 +370,24 @@ export function AdminDashboard() {
           <p className="text-muted-foreground">Manage users, roles, and access permissions</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              const csvContent = "data:text/csv;charset=utf-8," + 
+                "Name,Email,Role,Status,Last Login,Classes/XP\n" +
+                "Dr. Priya Sharma,priya.sharma@edu.gov.in,teacher,active,2 hours ago,3 Classes\n" +
+                "Rahul Kumar,rahul.kumar@student.edu.gov.in,student,active,1 hour ago,1250 XP\n" +
+                "Ankit Singh,ankit.singh@student.edu.gov.in,student,inactive,5 days ago,450 XP\n" +
+                "Dr. Amit Patel,amit.patel@edu.gov.in,admin,active,30 minutes ago,Full Access"
+              const encodedUri = encodeURI(csvContent)
+              const link = document.createElement("a")
+              link.setAttribute("href", encodedUri)
+              link.setAttribute("download", "users_export.csv")
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+            }}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export Users
           </Button>
@@ -581,7 +598,21 @@ export function AdminDashboard() {
           <h2 className="text-2xl font-bold">Content Management & Approval</h2>
           <p className="text-muted-foreground">Review, approve, and manage educational content</p>
         </div>
-        <Button>
+        <Button
+          onClick={() => {
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.mp4,.mp3'
+            input.multiple = true
+            input.onchange = (e) => {
+              const files = (e.target as HTMLInputElement).files
+              if (files && files.length > 0) {
+                alert(`Uploaded ${files.length} content file(s): ${Array.from(files).map(f => f.name).join(', ')}`)
+              }
+            }
+            input.click()
+          }}
+        >
           <Upload className="h-4 w-4 mr-2" />
           Upload Content
         </Button>
@@ -799,7 +830,28 @@ export function AdminDashboard() {
           <p className="text-muted-foreground">Comprehensive platform insights and performance metrics</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              const csvContent = "data:text/csv;charset=utf-8," + 
+                "Metric,Value,Change,Period\n" +
+                "Daily Active Users,1234,+8.2%,vs last week\n" +
+                "Lessons Completed,5678,+15.3%,vs last week\n" +
+                "Avg Session Time,42 min,+5.1%,vs last week\n" +
+                "Platform Growth,+12.4%,Monthly growth rate\n" +
+                "Mathematics Performance,87%,+3.2%,1250 students\n" +
+                "Science Performance,82%,+1.8%,1100 students\n" +
+                "English Performance,89%,+4.1%,1350 students\n" +
+                "History Performance,78%,-0.5%,950 students"
+              const encodedUri = encodeURI(csvContent)
+              const link = document.createElement("a")
+              link.setAttribute("href", encodedUri)
+              link.setAttribute("download", "analytics_report.csv")
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+            }}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export Report
           </Button>

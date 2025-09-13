@@ -41,6 +41,13 @@ function RoleSelectionPage({ onRoleSelect }: { onRoleSelect: (role: string) => v
       </header>
 
       <main className="container mx-auto px-6 py-12">
+        <div className="flex justify-center mb-8">
+          <img 
+            src="https://i.ibb.co/LDQJ6gPY/edugamers-logo.png" 
+            alt="EduGamers Logo" 
+            className="h-40 w-auto object-contain"
+          />
+        </div>
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-foreground mb-4">Welcome to EduGamers</h2>
           <p className="text-lg text-muted-foreground">Choose your role to access the platform</p>

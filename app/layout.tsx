@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
+import { AuthProvider } from "@/lib/auth-context"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -17,6 +18,12 @@ export const metadata: Metadata = {
   title: "Government Education Platform",
   description: "Comprehensive educational platform for students, teachers, and administrators",
   generator: "v0.app",
+  viewport: {
+    width: 'device-width',
+    initialScale: 1.0,
+    maximumScale: 1.0,
+    userScalable: false,
+  },
 }
 
 export default function RootLayout({
@@ -29,7 +36,9 @@ export default function RootLayout({
       <body className={`font-sans ${dmSans.variable} ${GeistMono.variable} antialiased`}>
         <Suspense fallback={null}>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            {children}
+            <AuthProvider>
+              {children}
+            </AuthProvider>
           </ThemeProvider>
           <Analytics />
         </Suspense>

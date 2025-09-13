@@ -18,8 +18,14 @@ export function XPSystem({ currentXP, level, streak, onXPGain }: XPSystemProps) 
   const [showXPGain, setShowXPGain] = useState(false)
   const [gainAmount, setGainAmount] = useState(0)
 
-  const xpForNextLevel = level * 1000
-  const xpProgress = (currentXP % 1000) / 10
+  // Calculate level based on XP: level = floor(√(xp/100)) + 1
+  const calculatedLevel = Math.floor(Math.sqrt(currentXP / 100)) + 1
+  const effectiveLevel = Math.min(calculatedLevel, 100) // Cap at level 100
+  
+  // Calculate progress to next level (0-100%)
+  const currentLevelFloor = Math.pow(effectiveLevel - 1, 2) * 100
+  const nextLevelFloor = Math.pow(effectiveLevel, 2) * 100
+  const xpProgress = ((currentXP - currentLevelFloor) / (nextLevelFloor - currentLevelFloor)) * 100
 
   const handleXPGain = (amount: number) => {
     setGainAmount(amount)
@@ -34,7 +40,7 @@ export function XPSystem({ currentXP, level, streak, onXPGain }: XPSystemProps) 
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-amber-800">
             <Trophy className="h-5 w-5" />
-            Level {level} Explorer
+            Level {effectiveLevel} Explorer
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -54,7 +60,7 @@ export function XPSystem({ currentXP, level, streak, onXPGain }: XPSystemProps) 
               <div className="text-xs text-amber-600">Total XP</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-800">{level}</div>
+              <div className="text-2xl font-bold text-orange-800">{effectiveLevel}</div>
               <div className="text-xs text-orange-600">Level</div>
             </div>
             <div className="text-center">

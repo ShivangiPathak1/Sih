@@ -350,7 +350,26 @@ export function TeacherDashboard() {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                // Create and download CSV file
+                const csvContent = "data:text/csv;charset=utf-8," + 
+                  "Name,ID,XP,Attendance,Performance,Status\n" +
+                  "Rahul Kumar,STU001,1250,95,88,Active\n" +
+                  "Priya Singh,STU002,1180,98,92,Active\n" +
+                  "Ankit Sharma,STU003,980,85,78,Needs Attention\n" +
+                  "Neha Patel,STU004,1350,100,95,Active"
+                const encodedUri = encodeURI(csvContent)
+                const link = document.createElement("a")
+                link.setAttribute("href", encodedUri)
+                link.setAttribute("download", "student_roster.csv")
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+              }}
+            >
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
@@ -495,7 +514,21 @@ export function TeacherDashboard() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button>
+                <Button
+                  onClick={() => {
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt'
+                    input.multiple = true
+                    input.onchange = (e) => {
+                      const files = (e.target as HTMLInputElement).files
+                      if (files && files.length > 0) {
+                        alert(`Uploaded ${files.length} file(s): ${Array.from(files).map(f => f.name).join(', ')}`)
+                      }
+                    }
+                    input.click()
+                  }}
+                >
                   <Upload className="h-4 w-4 mr-2" />
                   Upload Files
                 </Button>

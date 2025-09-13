@@ -56,19 +56,19 @@ const learningTips: LearningTip[] = [
 
 const aiResponses = {
   greeting: [
-    "Hello! I'm Vidya, your AI learning companion! How are you feeling about your studies today? 😊",
-    "Hi there! Ready to learn something amazing today? I'm here to help you succeed! 🌟",
-    "Welcome back! I'm excited to continue our learning journey together! 🚀",
+    "Hello Amandeep! I'm Vidya, your AI learning companion! I'm trained to help you with Mathematics, Science, English, and more. How can I assist you today? 😊",
+    "Hi there! Ready to learn something amazing today? I have access to comprehensive educational content and can help with homework, explanations, and study strategies! 🌟",
+    "Welcome back! I'm excited to continue our learning journey together! I can provide detailed explanations, solve problems step-by-step, and help you understand complex concepts! 🚀",
   ],
   encouragement: [
-    "You're doing great! Every question you ask makes you smarter! 💪",
-    "I believe in you! Learning takes time, and you're making excellent progress! ⭐",
-    "That's a wonderful question! Curiosity is the key to learning! 🔑",
+    "You're doing great! Every question you ask makes you smarter! I'm here to provide accurate, detailed answers to help you succeed! 💪",
+    "I believe in you! Learning takes time, and you're making excellent progress! I can break down any topic into manageable steps! ⭐",
+    "That's a wonderful question! Curiosity is the key to learning! Let me give you a comprehensive answer! 🔑",
   ],
   help: [
-    "I'm here to help! What subject would you like to explore today? 🎯",
-    "Let's break this down together. What specific topic are you working on? 📖",
-    "No worries! We'll figure this out step by step. What's challenging you? 🤔",
+    "I'm here to help with accurate, detailed explanations! What subject would you like to explore today? I can cover Mathematics, Science, English, History, and more! 🎯",
+    "Let's break this down together with step-by-step solutions. What specific topic are you working on? I'll provide comprehensive guidance! 📖",
+    "No worries! I'll help you understand this thoroughly. What's challenging you? I can explain concepts, solve problems, and provide examples! 🤔",
   ],
 }
 
@@ -101,36 +101,125 @@ export function AIMentorChat() {
   const generateAIResponse = (userMessage: string): string => {
     const lowerMessage = userMessage.toLowerCase()
 
+    // Help and difficulty responses
     if (lowerMessage.includes("help") || lowerMessage.includes("stuck") || lowerMessage.includes("difficult")) {
       return aiResponses.help[Math.floor(Math.random() * aiResponses.help.length)]
     }
 
-    if (lowerMessage.includes("math") || lowerMessage.includes("mathematics")) {
-      return "Math can be fun! Let's start with the basics and build up. What specific math topic are you working on? I can suggest some practice problems! 🧮✨"
+    // Math responses
+    if (lowerMessage.includes("math") || lowerMessage.includes("mathematics") || lowerMessage.includes("algebra") || lowerMessage.includes("geometry") || lowerMessage.includes("calculus") || lowerMessage.includes("trigonometry")) {
+      const mathResponses = [
+        "Mathematics is the foundation of logical thinking! I can help you with algebra, geometry, calculus, trigonometry, and more. What specific topic would you like to explore? I'll provide step-by-step solutions and explanations! 🧮✨",
+        "Math problems are like puzzles waiting to be solved! I can break down complex equations, explain formulas, and help you understand mathematical concepts. What math concept are you working on? 📐",
+        "Don't worry, math becomes easier with practice and proper understanding! I can explain any mathematical concept, solve equations step-by-step, and provide practice problems. What would you like help with? 🧮",
+        "Math is everywhere in our daily lives! From calculating discounts to understanding scientific formulas. I can help with arithmetic, algebra, geometry, statistics, and advanced topics. What mathematical challenge can we tackle together? 🔢"
+      ]
+      return mathResponses[Math.floor(Math.random() * mathResponses.length)]
     }
 
-    if (lowerMessage.includes("science")) {
-      return "Science is all around us! What aspect of science interests you most? Physics, chemistry, biology, or earth science? Let's explore together! 🔬🌟"
+    // Science responses
+    if (lowerMessage.includes("science") || lowerMessage.includes("physics") || lowerMessage.includes("chemistry") || lowerMessage.includes("biology") || lowerMessage.includes("experiment") || lowerMessage.includes("molecule") || lowerMessage.includes("atom")) {
+      const scienceResponses = [
+        "Science is the systematic study of our universe! I can help you understand physics (motion, energy, forces), chemistry (atoms, molecules, reactions), biology (cells, genetics, evolution), and earth science. What specific scientific concept would you like to explore? 🔬🌟",
+        "Science is about asking questions and finding evidence-based answers! I can explain scientific phenomena, help with lab reports, and break down complex theories. What scientific topic are you curious about? 🧪",
+        "Every great scientist started with curiosity and systematic thinking! I can help you understand scientific concepts, explain experiments, and connect theory to real-world applications. What science topic are you studying? 🌟",
+        "Science helps us understand everything from subatomic particles to galaxies! I can explain the scientific method, help with experiments, and make complex concepts accessible. What scientific mystery would you like to solve? 🚀"
+      ]
+      return scienceResponses[Math.floor(Math.random() * scienceResponses.length)]
     }
 
-    if (lowerMessage.includes("english") || lowerMessage.includes("reading")) {
-      return "Reading opens up whole new worlds! Are you working on comprehension, writing, or grammar? I have some great tips to share! 📚💡"
+    // English responses
+    if (lowerMessage.includes("english") || lowerMessage.includes("reading") || lowerMessage.includes("writing") || lowerMessage.includes("grammar")) {
+      const englishResponses = [
+        "Reading opens up whole new worlds! Are you working on comprehension, writing, or grammar? I have some great tips to share! 📚💡",
+        "Language is a powerful tool! Whether it's reading, writing, or speaking, practice makes perfect. What English skill would you like to improve? ✍️",
+        "Books are windows to other worlds! What type of reading do you enjoy most? Fiction, non-fiction, or poetry? 📖",
+        "Writing is a way to express your thoughts and creativity! What kind of writing are you working on? Essays, stories, or something else? 🖋️"
+      ]
+      return englishResponses[Math.floor(Math.random() * englishResponses.length)]
     }
 
-    if (lowerMessage.includes("tired") || lowerMessage.includes("stressed")) {
-      return "It's okay to feel that way sometimes! Let's take a short break. Try some deep breathing or a quick walk. Learning is a marathon, not a sprint! 🌸💆‍♀️"
+    // History responses
+    if (lowerMessage.includes("history") || lowerMessage.includes("historical") || lowerMessage.includes("ancient") || lowerMessage.includes("past")) {
+      const historyResponses = [
+        "History is like a time machine! It helps us understand how we got to where we are today. What historical period interests you? 🏛️",
+        "Every historical event has a story behind it! What historical topic are you studying? I can help make it more interesting! 📜",
+        "History is full of amazing people and events! From ancient civilizations to modern times, there's so much to learn. What fascinates you? 🗿",
+        "Understanding history helps us make better decisions for the future! What historical event would you like to explore? ⏰"
+      ]
+      return historyResponses[Math.floor(Math.random() * historyResponses.length)]
     }
 
-    if (lowerMessage.includes("good") || lowerMessage.includes("great") || lowerMessage.includes("awesome")) {
+    // Games and learning responses
+    if (lowerMessage.includes("game") || lowerMessage.includes("play") || lowerMessage.includes("fun") || lowerMessage.includes("boring")) {
+      const gameResponses = [
+        "Learning can be fun when we make it a game! Have you tried our vocabulary challenges or math adventures? They're both educational and entertaining! 🎮",
+        "Games make learning more engaging! What type of educational games do you enjoy? Puzzles, quizzes, or interactive stories? 🧩",
+        "When learning feels like play, we remember better! Try our science experiments or history detective games - they're both fun and educational! 🎯",
+        "Learning through games is one of the best ways to study! Which subject would you like to turn into a game? 🎲"
+      ]
+      return gameResponses[Math.floor(Math.random() * gameResponses.length)]
+    }
+
+    // Emotional support responses
+    if (lowerMessage.includes("tired") || lowerMessage.includes("stressed") || lowerMessage.includes("overwhelmed") || lowerMessage.includes("difficult")) {
+      const supportResponses = [
+        "It's okay to feel that way sometimes! Let's take a short break. Try some deep breathing or a quick walk. Learning is a marathon, not a sprint! 🌸💆‍♀️",
+        "Everyone feels overwhelmed sometimes! Remember, you're doing great just by trying. What's one small thing you can do right now? 🌱",
+        "Take a deep breath! Learning takes time and patience. What's making you feel stressed? Maybe we can break it down into smaller steps! 🌊",
+        "You're stronger than you think! When things get tough, remember all the challenges you've already overcome. What can I help you with? 💪"
+      ]
+      return supportResponses[Math.floor(Math.random() * supportResponses.length)]
+    }
+
+    // Positive responses
+    if (lowerMessage.includes("good") || lowerMessage.includes("great") || lowerMessage.includes("awesome") || lowerMessage.includes("excellent")) {
       return aiResponses.encouragement[Math.floor(Math.random() * aiResponses.encouragement.length)]
     }
 
-    // Default responses
+    // Study tips and strategies
+    if (lowerMessage.includes("study") || lowerMessage.includes("learn") || lowerMessage.includes("remember") || lowerMessage.includes("focus")) {
+      const studyResponses = [
+        "Great study habits make all the difference! Try the Pomodoro technique: 25 minutes of focused study, then a 5-minute break. What study method works best for you? ⏰",
+        "Active learning is more effective than passive reading! Try summarizing what you learn in your own words, or teach it to someone else. What subject are you studying? 📝",
+        "Spaced repetition helps you remember better! Review material at increasing intervals: 1 day, 3 days, 1 week, 2 weeks. What are you trying to memorize? 🧠",
+        "Find your learning style! Some people learn better by seeing (visual), hearing (auditory), or doing (kinesthetic). What works best for you? 🎨"
+      ]
+      return studyResponses[Math.floor(Math.random() * studyResponses.length)]
+    }
+
+    // Specific problem-solving responses
+    if (lowerMessage.includes("solve") || lowerMessage.includes("problem") || lowerMessage.includes("equation") || lowerMessage.includes("formula")) {
+      const problemResponses = [
+        "I'd love to help you solve that problem! Please share the specific equation, problem statement, or question you're working on, and I'll provide a step-by-step solution with explanations! 🧮",
+        "Problem-solving is one of my strengths! I can work through math equations, science problems, and logical puzzles. What specific problem would you like me to help you solve? 🔍",
+        "Let's tackle this problem together! I can break it down into manageable steps and explain each part clearly. What problem are you trying to solve? 💡",
+        "I'm ready to help you work through any problem! Whether it's a math equation, science experiment, or writing assignment, I can provide detailed guidance. What's the challenge? 🎯"
+      ]
+      return problemResponses[Math.floor(Math.random() * problemResponses.length)]
+    }
+
+    // Homework help responses
+    if (lowerMessage.includes("homework") || lowerMessage.includes("assignment") || lowerMessage.includes("project")) {
+      const homeworkResponses = [
+        "I'm here to help with your homework! I can assist with math problems, science questions, essay writing, and more. What specific assignment are you working on? 📝",
+        "Homework help is one of my specialties! I can provide step-by-step solutions, explain concepts, and help you understand the material. What subject is your assignment in? 📚",
+        "Let's work through your homework together! I can help you understand the concepts and guide you to the right answers. What assignment are you struggling with? ✍️",
+        "I'm ready to help you succeed with your homework! Whether it's solving equations, writing essays, or understanding scientific concepts, I'm here to support you. What do you need help with? 🎓"
+      ]
+      return homeworkResponses[Math.floor(Math.random() * homeworkResponses.length)]
+    }
+
+    // Default responses with more variety
     const defaultResponses = [
-      "That's interesting! Tell me more about what you're thinking. 🤔",
-      "I love your curiosity! How can I help you learn more about this? 📖",
-      "Great question! Let's explore this together. What would you like to know? 🔍",
-      "You're on the right track! What specific help do you need? 🎯",
+      "That's a great question! I'm trained to provide accurate, detailed answers across all subjects. What specific topic would you like to explore? 🤔",
+      "I love your curiosity! I can help with mathematics, science, English, history, and more. What would you like to learn about today? 📖",
+      "Excellent question! I'm here to provide comprehensive explanations and step-by-step solutions. What subject area interests you? 🔍",
+      "You're on the right track! I can help with homework, explain complex concepts, and provide practice problems. What specific help do you need? 🎯",
+      "I'm here to help you succeed academically! I can assist with problem-solving, concept explanations, and study strategies. What learning challenge can we tackle together? 🚀",
+      "Every question is a step toward understanding! I'm trained to provide accurate, detailed answers. What would you like to explore? 🌟",
+      "Learning is an adventure! I can help with any subject from basic concepts to advanced topics. What new knowledge are you seeking today? 🗺️",
+      "Your curiosity is your superpower! I'm ready to provide comprehensive answers and explanations. What topic sparks your interest? ⚡"
     ]
 
     return defaultResponses[Math.floor(Math.random() * defaultResponses.length)]

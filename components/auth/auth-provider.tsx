@@ -154,8 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getDemoName = (email: string, role: UserRole) => {
     const demoNames = {
-      "student@edu.gov.in": "Rahul Kumar",
-      "teacher@edu.gov.in": "Priya Sharma",
+      "student@edu.gov.in": "Amandeep",
+      "teacher@edu.gov.in": "Ramesh",
       "admin@edu.gov.in": "Dr. Amit Singh",
     }
     return demoNames[email as keyof typeof demoNames] || `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`
