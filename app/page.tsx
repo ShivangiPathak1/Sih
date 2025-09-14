@@ -6,6 +6,7 @@ import { TeacherDashboard } from "@/components/dashboards/teacher-dashboard"
 import { AdminDashboard } from "@/components/dashboards/admin-dashboard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
 import {
   GraduationCap,
   Users,
@@ -18,6 +19,7 @@ import {
   PieChart,
   School,
   Settings,
+  ArrowRight,
 } from "lucide-react"
 
 function RoleSelectionPage({ onRoleSelect }: { onRoleSelect: (role: string) => void }) {
@@ -26,7 +28,7 @@ function RoleSelectionPage({ onRoleSelect }: { onRoleSelect: (role: string) => v
       <header className="flex items-center justify-between p-6">
         <div className="flex items-center gap-2">
           <Gamepad2 className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">EduGamers</h1>
+          <h1 className="text-2xl font-bold text-foreground">EduNova</h1>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -41,12 +43,26 @@ function RoleSelectionPage({ onRoleSelect }: { onRoleSelect: (role: string) => v
       </header>
 
       <main className="container mx-auto px-6 py-12">
-        <div className="flex justify-center mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
           <img 
-            src="https://i.ibb.co/LDQJ6gPY/edugamers-logo.png" 
-            alt="EduGamers Logo" 
-            className="h-40 w-auto object-contain"
+            src="https://i.ibb.co/LDQJ6gPY/edunova-logo.png" 
+            alt="EduNova Logo" 
+            className="h-32 w-auto object-contain"
           />
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+            <Button asChild variant="outline" size="lg" className="w-full md:w-auto">
+              <Link href="/games">
+                Explore Games <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button size="lg" className="w-full md:w-auto">
+              Get Started
+            </Button>
+          </div>
+        </div>
+        <div className="mb-12 text-center">
+          <h1 className="text-4xl font-bold mb-4">Educational Games Store</h1>
+          <p className="text-xl text-muted-foreground">Enhance learning through interactive games and challenges</p>
         </div>
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-foreground mb-4">Welcome to EduGamers</h2>
@@ -147,18 +163,19 @@ function RoleSelectionPage({ onRoleSelect }: { onRoleSelect: (role: string) => v
 export default function App() {
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
 
-  if (!selectedRole) {
-    return <RoleSelectionPage onRoleSelect={setSelectedRole} />
-  }
-
-  switch (selectedRole) {
-    case "student":
-      return <StudentDashboard />
-    case "teacher":
-      return <TeacherDashboard />
-    case "admin":
-      return <AdminDashboard />
-    default:
-      return <RoleSelectionPage onRoleSelect={setSelectedRole} />
-  }
+  return (
+    <div className="min-h-screen bg-background">
+      {!selectedRole ? (
+        <>
+              <RoleSelectionPage onRoleSelect={setSelectedRole} />
+        </>
+      ) : selectedRole === 'student' ? (
+        <StudentDashboard />
+      ) : selectedRole === 'teacher' ? (
+        <TeacherDashboard />
+      ) : (
+        <AdminDashboard />
+      )}
+    </div>
+  )
 }

@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import dynamic from 'next/dynamic'
 import { useAuth } from "@/lib/auth-context"
+import { UserProgress } from "@/lib/firestore-services"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { updateProfile } from "firebase/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
-import { Flame, Gift, LogOut } from "lucide-react"
+import { Flame, Gift, LogOut, Clock, FileText, Video, Headphones, Target as TargetIcon, Play, Bookmark } from "lucide-react"
 import {
   BookOpen,
   Trophy,
@@ -29,10 +31,11 @@ import {
   Home,
   Gamepad2,
   BarChart3,
+  Timer,
+  ChevronDown,
   Calendar,
   HelpCircle,
   Brain,
-  Timer,
   Settings,
   Volume2,
   Sun,
@@ -42,18 +45,48 @@ import {
   MessageCircle,
 } from "lucide-react"
 
+// Define HeatmapData type for the performance heatmap
+interface HeatmapData {
+  date: string;
+  value: number;
+  level: 0 | 1 | 2 | 3 | 4;
+}
+
+// Extended UserProgress with additional properties used in the dashboard
+type ExtendedUserProgress = UserProgress & {
+  // Add any additional properties that might be used in the dashboard
+  coins?: number;
+  recentActivity?: string[];
+  totalXP?: number;
+  xpToNextLevel?: number;
+  streakDays?: number;
+};
+
+interface ReviewingMaterial {
+  material: {
+    id: string;
+    title: string;
+    type: string;
+    duration: string;
+    description: string;
+  };
+  subject: {
+    id: string;
+    name: string;
+  };
+}
+
 import { useFirestoreProgress } from "@/hooks/use-firestore-progress"
 import { getLeaderboard } from "@/lib/firestore-services"
 import { RewardStore } from "@/components/gamification/reward-store"
 import { PerformanceHeatmap } from "@/components/analytics/performance-heatmap"
 import { fcmService } from "@/lib/fcm-service"
-import { AIMentorChat } from "@/components/ai-mentor/ai-mentor-chat"
 import { StudentProfile } from "@/components/profile/student-profile"
 import { StudentSettings } from "@/components/settings/student-settings"
 import { SubjectManager } from "@/components/subjects/subject-manager"
 import { ComprehensiveGameHub } from "@/components/games/comprehensive-game-hub"
 
-type StudentPage = "home" | "lessons" | "progress" | "schedule" | "support" | "ai-mentor" | "profile" | "settings" | "games"
+type StudentPage = "home" | "lessons" | "progress" | "games" | "profile" | "settings" | "support" | "pomodoro-timer" | "progress-overview"
 
 interface Challenge {
   id: string
@@ -87,16 +120,19 @@ export { StudentDashboard }
 interface NavItem {
   id: string
   label: string
-  icon: any
+  icon: React.ComponentType<{ className?: string }>
   href?: string
+  children?: NavItem[]
 }
 
 export default function StudentDashboard() {
   const router = useRouter()
   const { user, signOut } = useAuth()
-  const { toast } = useToast()
-  const { progress, loading } = useFirestoreProgress()
+  const { toast } = useToast();
+  const { progress, loading } = useFirestoreProgress();
   const [notifications, setNotifications] = useState<Array<{id: string, message: string}>>([])
+  
+  const [currentPage, setCurrentPage] = useState<StudentPage>("home");
   
   // Debug user authentication
   useEffect(() => {
@@ -107,41 +143,78 @@ export default function StudentDashboard() {
         email: user.email,
         isAnonymous: user.isAnonymous,
         photoURL: user.photoURL
-      })
-    } else {
-      console.log('No user logged in')
+      });
     }
-  }, [user])
-
-  const [currentPage, setCurrentPage] = useState<StudentPage>("home")
-  const navRef = useRef<HTMLDivElement>(null)
-  const [isDarkMode, setIsDarkMode] = useState(false)
-  const [pomodoroTime] = useState(25 * 60)
+  }, [user]);
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [leaderboard, setLeaderboard] = useState<Array<{id: string; name: string; xp: number}>>([]);
+  
+  // Review state
+  const [reviewingMaterial, setReviewingMaterial] = useState<ReviewingMaterial | null>(null);
   const [isTimerRunning] = useState(false)
 
-  const currentStreak = progress?.streak || 0
-  const level = progress?.level || 1
-  const rewards = Math.floor((progress?.xp || 0) / 100) || 0
+  // Transform progress to include additional properties
+  const extendedProgress = progress ? {
+    ...progress,
+    totalXP: progress.xp, // Map xp to totalXP for compatibility
+    xpToNextLevel: progress.level * 100 - progress.xp, // Calculate xpToNextLevel
+    coins: Math.floor(progress.xp / 10), // Calculate coins based on xp
+    recentActivity: [], // Initialize empty recent activity
+    streakDays: progress.streak, // Alias streak to streakDays
+  } : null;
+  
+  const currentStreak = extendedProgress?.streak ?? 0;
+  const level = extendedProgress?.level || 1;
+  const rewards = Math.floor((extendedProgress?.xp || 0) / 100) || 0;
+  
+  // Helper function to safely access UserProgress properties
+  const getProgressValue = <T extends keyof ExtendedUserProgress>(
+    key: T,
+    defaultValue: ExtendedUserProgress[T] = 0 as ExtendedUserProgress[T]
+  ): ExtendedUserProgress[T] => {
+    return extendedProgress?.[key] ?? defaultValue;
+  };
+  
+  // Helper function to transform subject data for the UI
+  const transformSubjectData = (subjects: UserProgress['subjects'] = {}) => {
+    return Object.entries(subjects).map(([id, data]) => ({
+      id,
+      name: id.charAt(0).toUpperCase() + id.slice(1),
+      progress: data.progress,
+      level: Math.floor(data.xp / 100) + 1,
+      completedLessons: data.lessonsCompleted || 0,
+      totalLessons: (data.lessonsCompleted || 0) + 5, // Assuming 5 more lessons to complete
+    }));
+  };
 
-  const weeklyProgress = [
-    { day: "Mon", xp: 120, activities: 8 },
-    { day: "Tue", xp: 85, activities: 6 },
-    { day: "Wed", xp: 150, activities: 12 },
-    { day: "Thu", xp: 95, activities: 7 },
-    { day: "Fri", xp: 180, activities: 15 },
-    { day: "Sat", xp: 200, activities: 18 },
-    { day: "Sun", xp: 110, activities: 9 },
+  // Generate weekly progress data based on user activity
+  const weeklyProgress: HeatmapData[] = [
+    { date: '2023-01-01', value: 120, level: 2 },
+    { date: '2023-01-02', value: 85, level: 1 },
+    { date: '2023-01-03', value: 150, level: 3 },
+    { date: '2023-01-04', value: 95, level: 2 },
+    { date: '2023-01-05', value: 180, level: 3 },
+    { date: '2023-01-06', value: 200, level: 4 },
+    { date: '2023-01-07', value: 110, level: 2 },
   ]
 
-  const subjectAnalytics = progress
-    ? Object.entries(progress.subjects).map(([key, data]) => ({
+  interface SubjectAnalytics {
+    subject: string;
+    completed: number;
+    total: number;
+    accuracy: number;
+    timeSpent: number;
+  }
+
+  const subjectAnalytics: SubjectAnalytics[] = extendedProgress?.subjects
+    ? Object.entries(extendedProgress.subjects).map(([key, data]) => ({
         subject: key.charAt(0).toUpperCase() + key.slice(1),
-        completed: data.lessonsCompleted,
-        total: data.lessonsCompleted + Math.floor(Math.random() * 20) + 10,
-        accuracy: Math.min(95, 75 + Math.floor(data.xp / 10)),
-        timeSpent: data.lessonsCompleted * 15,
+        completed: data.lessonsCompleted || 0,
+        total: (data.lessonsCompleted || 0) + Math.floor(Math.random() * 20) + 10,
+        accuracy: Math.min(95, 75 + Math.floor((data.xp || 0) / 10)),
+        timeSpent: (data.lessonsCompleted || 0) * 15,
       }))
-    : []
+    : [];
 
   const [challenges, setChallenges] = useState<Challenge[]>([
     { id: "1", task: "Complete 3 Math quizzes", xp: 50, completed: false, emoji: "🧮" },
@@ -243,14 +316,15 @@ export default function StudentDashboard() {
   const navItems: NavItem[] = [
     { id: "home", label: "Home", icon: Home },
     { id: "lessons", label: "Lessons", icon: BookOpen },
-    { id: "progress", label: "Progress", icon: BarChart3 },
     { 
-      id: "schedule", 
-      label: "Schedule", 
-      icon: Calendar,
-      href: "/schedule"
+      id: "progress", 
+      label: "Progress", 
+      icon: BarChart3,
+      children: [
+        { id: "progress-overview", label: "Overview", icon: BarChart3 },
+        { id: "pomodoro-timer", label: "Pomodoro Timer", icon: Timer }
+      ]
     },
-    { id: "ai-mentor", label: "AI Mentor", icon: Brain },
     { id: "games", label: "Games", icon: Gamepad2 },
     { id: "profile", label: "Profile", icon: User },
     { id: "settings", label: "Settings", icon: Settings },
@@ -258,324 +332,313 @@ export default function StudentDashboard() {
   ]
 
   const handleNavigation = (pageId: string) => {
-    if (pageId === 'schedule') {
-      router.push('/schedule')
+    console.log('Navigating to:', pageId); // Debug log
+    // Ensure the page ID is valid before updating state
+    if (['home', 'lessons', 'progress', 'games', 'profile', 'settings', 'support', 'pomodoro-timer', 'progress-overview'].includes(pageId)) {
+      setCurrentPage(pageId as StudentPage);
+      // Close any open dropdown menus
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     } else {
-      setCurrentPage(pageId as StudentPage)
+      console.warn('Invalid page ID:', pageId);
     }
   }
 
-  const renderPage = () => {
-    if (typeof window !== 'undefined' && window.location.pathname === '/schedule') {
-      return null // Next.js will render the schedule page
+  // Move the dynamic import to the top of the file with other imports
+  const PomodoroTimer = dynamic(
+    () => import('@/components/study/pomodoro-timer'),
+    { 
+      ssr: false,
+      loading: () => (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ),
     }
-    
+  );
+
+  const renderPage = (): React.ReactNode => {
+    console.log('Current page:', currentPage); // Debug log
+    if (reviewingMaterial) {
+      return renderReviewSection();
+    }
+
     switch (currentPage) {
-      case "support":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Support Center</h2>
-            <Card>
-              <CardHeader>
-                <CardTitle>Need Help?</CardTitle>
-                <CardDescription>We're here to assist you with any questions or issues.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <MessageCircle className="h-5 w-5 text-primary" />
-                        <CardTitle>Contact Support</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Send us a message and we'll get back to you as soon as possible.
-                      </p>
-                      <Button>
-                        <MessageCircle className="mr-2 h-4 w-4" />
-                        Chat with Support
-                      </Button>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center gap-2">
-                        <BookOpen className="h-5 w-5 text-primary" />
-                        <CardTitle>Help Center</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Browse our help articles and guides.
-                      </p>
-                      <Button variant="outline">
-                        <BookOpen className="mr-2 h-4 w-4" />
-                        View Help Articles
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Frequently Asked Questions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <h3 className="font-medium">How do I reset my password?</h3>
-                      <p className="text-sm text-muted-foreground">
-                        You can reset your password from the login page by clicking on "Forgot Password".
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="font-medium">How do I track my progress?</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Your progress is automatically tracked in the Progress section of your dashboard.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="font-medium">How can I contact my teacher?</h3>
-                      <p className="text-sm text-muted-foreground">
-                        You can message your teacher directly through the Messages section.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </CardContent>
-            </Card>
-          </div>
-        )
+      case "pomodoro-timer":
+        return <PomodoroTimer />;
       case "home":
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Welcome back, {user?.displayName || 'Student'}!</h2>
-            <div className="grid gap-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-primary/10 p-2 rounded-lg">
-                        <Zap className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total XP</p>
-                        <p className="text-xl font-bold">{progress?.xp?.toLocaleString() || 0}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-secondary/10 p-2 rounded-lg">
-                        <Target className="h-5 w-5 text-secondary" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Current Streak</p>
-                        <p className="text-xl font-bold">{progress?.streak || 0} days</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-amber-100 p-2 rounded-lg dark:bg-amber-900/20">
-                        <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Level</p>
-                        <p className="text-xl font-bold">{progress?.level || 1}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Jump back into your learning</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total XP</CardTitle>
+                  <Zap className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Button variant="outline" onClick={() => handleNavigation('lessons')}>
+                  <div className="text-2xl font-bold">{extendedProgress?.totalXP || 0}</div>
+                  <p className="text-xs text-muted-foreground">+20% from last month</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Current Level</CardTitle>
+                  <Trophy className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{extendedProgress?.level || 1}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {extendedProgress?.xpToNextLevel ? `${extendedProgress.xpToNextLevel} XP to next level` : 'Max level reached'}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Streak</CardTitle>
+                  <Flame className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{extendedProgress?.streakDays || 0} days</div>
+                  <p className="text-xs text-muted-foreground">Keep it up!</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Coins</CardTitle>
+                  <Gift className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{extendedProgress?.coins || 0}</div>
+                  <p className="text-xs text-muted-foreground">Earn more by completing lessons</p>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <PerformanceHeatmap data={weeklyProgress} title="Weekly Activity" metric="XP" />
+            
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+              <Card className="col-span-4">
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent className="pl-2">
+                  <div className="space-y-4">
+                    {extendedProgress?.recentActivity?.length ? (
+                      extendedProgress.recentActivity.map((activity: string, index: number) => (
+                        <div key={index} className="flex items-center">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium leading-none">{activity}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date().toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground text-sm">No recent activity</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="col-span-3">
+                <CardHeader>
+                  <CardTitle>Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-2">
+                    <Button variant="outline" className="justify-start" onClick={() => setCurrentPage('lessons')}>
                       <BookOpen className="mr-2 h-4 w-4" />
-                      Lessons
+                      Continue Learning
                     </Button>
-                    <Button variant="outline" onClick={() => handleNavigation('games')}>
-                      <Gamepad2 className="mr-2 h-4 w-4" />
-                      Games
+                    <Button variant="outline" className="justify-start">
+                      <Target className="mr-2 h-4 w-4" />
+                      Set Daily Goal
                     </Button>
-                    <Button variant="outline" onClick={() => handleNavigation('progress')}>
+                    <Button variant="outline" className="justify-start">
                       <BarChart3 className="mr-2 h-4 w-4" />
-                      Progress
-                    </Button>
-                    <Button variant="outline" onClick={() => handleNavigation('ai-mentor')}>
-                      <Brain className="mr-2 h-4 w-4" />
-                      AI Mentor
+                      View Progress
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </div>
-        )
-      case "profile":
-        return <StudentProfile />
-      case "settings":
-        return <StudentSettings />
+        );
       case "lessons":
-        return <SubjectManager />
-      case "games":
-        return <ComprehensiveGameHub />
+        return <SubjectManager onReviewMaterial={handleReviewMaterial} />;
       case "progress":
+        return <PerformanceHeatmap data={weeklyProgress} title="Performance Overview" metric="XP" />;
+      case "profile":
+        return <StudentProfile />;
+      case "settings":
+        return <StudentSettings />;
+      case "support":
+        return <div>Support Page</div>;
+      case "games":
+        return <ComprehensiveGameHub />;
+      case "pomodoro-timer":
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Your Learning Progress</h2>
-            <PerformanceHeatmap 
-              data={[
-                { date: '2023-04-01', value: 2, level: 1 },
-                { date: '2023-04-02', value: 5, level: 3 },
-                { date: '2023-04-03', value: 1, level: 0 },
-                { date: '2023-04-04', value: 3, level: 2 },
-                { date: '2023-04-05', value: 4, level: 2 },
-                { date: '2023-04-06', value: 2, level: 1 },
-                { date: '2023-04-07', value: 0, level: 0 }
-              ]}
-            />
-            <Card>
-              <CardHeader>
-                <CardTitle>Weekly Activity</CardTitle>
-                <CardDescription>Your study activity over the past week</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[200px] flex items-end gap-2">
-                  {[10, 40, 35, 50, 60, 45, 30].map((value, index) => (
-                    <div key={index} className="flex-1 flex flex-col items-center">
-                      <div 
-                        className="w-full bg-primary rounded-t-sm" 
-                        style={{ height: `${value}%` }}
-                      />
-                      <span className="text-xs text-muted-foreground mt-1">
-                        {['M', 'T', 'W', 'T', 'F', 'S', 'S'][index]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex justify-center items-center h-full">
+            <PomodoroTimer />
           </div>
-        )
-      case "ai-mentor":
-        return <AIMentorChat />
+        );
+      case "progress-overview":
+        return <div>Progress Overview</div>;
       default:
-        return <div>Page not found</div>
+        return null;
     }
+  };
+
+  interface StudyMaterial {
+    id: string;
+    title: string;
+    type: string;
+    duration: string;
+    description: string;
+    completed?: boolean;
+    locked?: boolean;
   }
 
-  const NavItem = ({ item }: { item: NavItem }) => {
-    const handleClick = () => {
-      if (item.href) {
-        router.push(item.href)
-      } else {
-        setCurrentPage(item.id as StudentPage)
-      }
-    }
-    
-    const isActive = item.href 
-      ? typeof window !== 'undefined' && window.location.pathname === item.href
-      : currentPage === item.id
-    
-    return (
-      <button
-        onClick={handleClick}
-        className={`flex items-center gap-3 w-full p-3 rounded-lg transition-colors ${
-          isActive
-            ? 'bg-primary/10 text-primary'
-            : 'text-muted-foreground hover:bg-muted/50'
-        }`}
-      >
-        <item.icon className="h-5 w-5" />
-        <span className="font-medium">{item.label}</span>
-      </button>
-    )
+  interface Subject {
+    id: string;
+    name: string;
   }
 
-  const renderMobileNav = () => (
-    <div className="fixed bottom-0 left-0 right-0 bg-card border-t md:hidden z-50">
-      <div className="flex justify-around">
-        {navItems.map((item) => (
-          <NavItem key={item.id} item={item} />
-        ))}
-      </div>
-    </div>
-  )
+  const handleReviewMaterial = (material: StudyMaterial, subject: Subject) => {
+    setReviewingMaterial({ material, subject });
+  };
 
-  if (loading) {
+  const renderReviewSection = () => {
+    if (!reviewingMaterial || !reviewingMaterial.material || !reviewingMaterial.subject) {
+      return null;
+    }
+    
+    const { material, subject } = reviewingMaterial;
+    
     return (
-      <div className="min-h-screen bg-gradient-to-br from-sage-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your progress...</p>
+      <div className="space-y-6 p-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold">Review: {material.title}</h2>
+          <Button 
+            variant="outline" 
+            onClick={() => setReviewingMaterial(null)}
+            className="flex items-center gap-2"
+          >
+            <span>←</span> Back to Lessons
+          </Button>
         </div>
+        
+        <Card className="shadow-lg">
+          <CardHeader className="border-b">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                {material.type === 'video' ? (
+                  <Video className="h-6 w-6" />
+                ) : material.type === 'document' ? (
+                  <FileText className="h-6 w-6" />
+                ) : material.type === 'audio' ? (
+                  <Headphones className="h-6 w-6" />
+                ) : (
+                  <Target className="h-6 w-6" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">{material.title}</h3>
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <span className="capitalize">{material.type}</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    {material.duration}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-lg">{material.description}</p>
+              <div className="flex items-center gap-4">
+                <Button variant="default" className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Play className="h-4 w-4" />
+                  Start Review
+                </Button>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Bookmark className="h-4 w-4" />
+                  Bookmark
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    )
-  }
+    );
+  };
+
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="bg-primary/10 p-2 rounded-lg">
-              <BookOpen className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">🎓 Student Portal</h1>
-              <p className="text-sm text-muted-foreground">Government Education Platform</p>
-            </div>
+    <div className="flex h-screen flex-col">
+      {/* Header */}
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <Gamepad2 className="h-6 w-6" />
+            <span className="text-lg font-semibold">EduNova</span>
           </div>
-
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                const token = await fcmService.requestPermission()
-                toast({
-                  title: "🔔 Notifications",
-                  description: token ? "Notifications enabled!" : "Permission not granted or unsupported.",
-                })
-              }}
-              className="relative"
-            >
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-white text-xs flex items-center justify-center">
-                {notifications.length > 0 ? notifications.length : null}
-              </span>
+          
+          <nav className="hidden md:flex items-center gap-2">
+            {navItems.map((item) => (
+              item.children ? (
+                <DropdownMenu key={item.id}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center gap-1"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                      <ChevronDown className="ml-1 h-3 w-3 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {item.children.map((child) => (
+                      <DropdownMenuItem 
+                        key={child.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          handleNavigation(child.id);
+                        }}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <child.icon className="h-4 w-4" />
+                        {child.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button
+                  key={item.id}
+                  variant="ghost"
+                  onClick={() => setCurrentPage(item.id as StudentPage)}
+                  className="flex items-center gap-2"
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Button>
+              )
+            ))}
+          </nav>
+          
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon">
+              <Bell className="h-4 w-4" />
             </Button>
-            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage 
-                      src={user?.photoURL || ''} 
-                      alt={user?.displayName || 'User'}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=random`;
-                      }}
-                    />
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {user?.displayName 
-                        ? user.displayName.split(' ').map(n => n[0]).join('').toUpperCase()
-                        : 'U'}
-                    </AvatarFallback>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} />
+                    <AvatarFallback>{user?.displayName?.[0] || 'U'}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -589,24 +652,16 @@ export default function StudentDashboard() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setCurrentPage('profile')}>
+                <DropdownMenuItem className="cursor-pointer">
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCurrentPage('settings')}>
+                <DropdownMenuItem className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={async (e) => {
-                  e.preventDefault()
-                  try {
-                    await signOut()
-                    router.push('/')
-                  } catch (error) {
-                    console.error('Error signing out:', error)
-                  }
-                }}>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => signOut()}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
                 </DropdownMenuItem>
@@ -614,31 +669,18 @@ export default function StudentDashboard() {
             </DropdownMenu>
           </div>
         </div>
-
-        <div className="border-t">
-          <div className="container mx-auto px-4">
-            <nav className="w-full">
-              <div className="flex overflow-x-auto pb-2 hide-scrollbar space-x-1">
-                {navItems.map((item) => (
-                  <Button
-                    key={item.id}
-                    variant={currentPage === item.id ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setCurrentPage(item.id as StudentPage)}
-                    className="flex items-center gap-2"
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="hidden md:inline">{item.label}</span>
-                  </Button>
-                ))}
-              </div>
-            </nav>
-          </div>
-        </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">{renderPage()}</main>
+      <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        {currentPage === 'pomodoro-timer' ? (
+          <div className="container mx-auto max-w-4xl">
+            <PomodoroTimer />
+          </div>
+        ) : (
+          renderPage()
+        )}
+      </main>
     </div>
-  )
+  );
 }

@@ -184,11 +184,16 @@ const subjects: Subject[] = [
   },
 ]
 
-export function SubjectManager() {
+interface SubjectManagerProps {
+  onReviewMaterial?: (material: StudyMaterial, subject: Subject) => void;
+}
+
+export function SubjectManager({ onReviewMaterial }: SubjectManagerProps) {
   const { progress, finishLesson, addXP } = useFirestoreProgress()
   const { toast } = useToast()
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [reviewingMaterial, setReviewingMaterial] = useState<StudyMaterial | null>(null)
 
   const handleStartMaterial = async (material: StudyMaterial, subject: Subject) => {
     if (material.locked) {
@@ -201,11 +206,15 @@ export function SubjectManager() {
     }
 
     if (material.completed) {
-      toast({
-        title: "Already Completed ✅",
-        description: "You've already completed this material. Great job!",
-      })
-      return
+      // Call the parent component's onReviewMaterial handler if provided
+      if (onReviewMaterial) {
+        onReviewMaterial(material, subject);
+      } else {
+        // Fallback to local state if no handler provided
+        setSelectedSubject(subject);
+        setReviewingMaterial({...material});
+      }
+      return;
     }
 
     // Simulate starting the material
@@ -226,6 +235,10 @@ export function SubjectManager() {
         description: `You earned ${xpGained} XP! Keep up the great work!`,
       })
     }, 2000)
+  }
+
+  const closeReview = () => {
+    setReviewingMaterial(null)
   }
 
   const getTypeIcon = (type: string) => {
@@ -383,6 +396,76 @@ export function SubjectManager() {
         </Card>
       </div>
     )
+  }
+
+  // Render review section if we have a material to review
+  if (reviewingMaterial && selectedSubject) {
+    console.log('Rendering review section for:', reviewingMaterial.title);
+    return (
+      <div className="space-y-6 p-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold">Review: {reviewingMaterial.title}</h2>
+          <Button 
+            variant="outline" 
+            onClick={closeReview}
+            className="flex items-center gap-2"
+          >
+            <span>←</span> Back to Materials
+          </Button>
+        </div>
+        
+        <Card className="shadow-lg">
+          <CardHeader className="border-b">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                {getTypeIcon(reviewingMaterial.type)}
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">{reviewingMaterial.title}</h3>
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <span className="capitalize">{reviewingMaterial.type}</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    {reviewingMaterial.duration}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              <div className="prose max-w-none">
+                <h4 className="font-medium mb-2">About This Material</h4>
+                <p className="text-muted-foreground">
+                  {reviewingMaterial.description}
+                </p>
+              </div>
+              
+              <div className="p-6 bg-muted/30 rounded-lg border">
+                <div className="text-center space-y-2">
+                  <h4 className="font-medium">Review Mode</h4>
+                  <p className="text-sm text-muted-foreground">
+                    You're reviewing previously completed material. Take your time to go through the content again.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex justify-end pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={closeReview}
+                  className="ml-auto"
+                >
+                  Close Review
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

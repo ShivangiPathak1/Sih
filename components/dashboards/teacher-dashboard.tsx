@@ -37,7 +37,7 @@ import {
   HelpCircle,
 } from "lucide-react"
 
-type TeacherPage = "home" | "classes" | "content" | "analytics" | "schedule" | "support"
+type TeacherPage = "home" | "classes" | "content" | "analytics" | "support"
 
 export function TeacherDashboard() {
   const { user, logout } = useAuth()
@@ -49,7 +49,6 @@ export function TeacherDashboard() {
     { id: "classes", label: "Class Management", icon: Users },
     { id: "content", label: "Content & Assignments", icon: BookOpen },
     { id: "analytics", label: "Analytics & Reports", icon: BarChart3 },
-    { id: "schedule", label: "Schedule & Communication", icon: Calendar },
     { id: "support", label: "Support & Settings", icon: Settings },
   ]
 
@@ -69,8 +68,6 @@ export function TeacherDashboard() {
         return <ContentManagementPage />
       case "analytics":
         return <AnalyticsPage />
-      case "schedule":
-        return <SchedulePage />
       case "support":
         return <SupportPage />
       default:
@@ -854,106 +851,6 @@ export function TeacherDashboard() {
     </div>
   )
 
-  const SchedulePage = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Schedule & Communication</h2>
-        <p className="text-muted-foreground">Manage your teaching schedule and communicate with students</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Schedule</CardTitle>
-              <CardDescription>Your teaching calendar and upcoming events</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-7 gap-2 mb-4">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="text-center text-sm font-medium p-2">
-                    {day}
-                  </div>
-                ))}
-                {Array.from({ length: 35 }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`h-16 border rounded flex flex-col items-center justify-center text-sm ${
-                      i % 7 === 0 || i % 7 === 6 ? "bg-muted/50" : "hover:bg-muted/50 cursor-pointer"
-                    }`}
-                  >
-                    <span className="font-medium">{i + 1 <= 31 ? i + 1 : ""}</span>
-                    {i === 10 && <div className="w-2 h-2 bg-primary rounded-full mt-1"></div>}
-                    {i === 15 && <div className="w-2 h-2 bg-secondary rounded-full mt-1"></div>}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Communication</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="announcement">Send Announcement</Label>
-                <Textarea id="announcement" placeholder="Type your message to all students..." />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="class-select">Select Class</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="w-full">
-                <Send className="h-4 w-4 mr-2" />
-                Send Announcement
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Messages</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                { from: "Priya Singh", message: "Question about homework", time: "2h ago" },
-                { from: "Rahul Kumar", message: "Request for extra help", time: "4h ago" },
-                { from: "Ankit Sharma", message: "Absence notification", time: "1d ago" },
-              ].map((msg, index) => (
-                <div key={index} className="flex items-start gap-3 p-2 border rounded-lg">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>{msg.from.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{msg.from}</p>
-                    <p className="text-xs text-muted-foreground">{msg.message}</p>
-                    <p className="text-xs text-muted-foreground">{msg.time}</p>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    <Mail className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  )
 
   const SupportPage = () => (
     <div className="space-y-6">
