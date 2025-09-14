@@ -43,7 +43,9 @@ import {
   Languages,
   User,
   MessageCircle,
+  PieChart
 } from "lucide-react"
+import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 // Define HeatmapData type for the performance heatmap
 interface HeatmapData {
@@ -130,7 +132,6 @@ export default function StudentDashboard() {
   const { user, signOut } = useAuth()
   const { toast } = useToast();
   const { progress, loading } = useFirestoreProgress();
-  const [notifications, setNotifications] = useState<Array<{id: string, message: string}>>([])
   
   const [currentPage, setCurrentPage] = useState<StudentPage>("home");
   
@@ -146,7 +147,16 @@ export default function StudentDashboard() {
       });
     }
   }, [user]);
-  const [showNotifications, setShowNotifications] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{id: string; message: string; date: string; read: boolean}>>([
+    // Example notification - can be removed or kept as a placeholder
+    // {
+    //   id: '1',
+    //   message: 'Welcome to EduNova! Start your learning journey now.',
+    //   date: 'Just now',
+    //   read: false
+    // }
+  ]);
   const [leaderboard, setLeaderboard] = useState<Array<{id: string; name: string; xp: number}>>([]);
   
   // Review state
@@ -156,16 +166,26 @@ export default function StudentDashboard() {
   // Transform progress to include additional properties
   const extendedProgress = progress ? {
     ...progress,
+    level: 1, // Force level to be 1
     totalXP: progress.xp, // Map xp to totalXP for compatibility
-    xpToNextLevel: progress.level * 100 - progress.xp, // Calculate xpToNextLevel
+    xpToNextLevel: 100 - (progress.xp % 100), // Calculate xp to next level (always 100 XP per level)
     coins: Math.floor(progress.xp / 10), // Calculate coins based on xp
     recentActivity: [], // Initialize empty recent activity
     streakDays: progress.streak, // Alias streak to streakDays
   } : null;
   
   const currentStreak = extendedProgress?.streak ?? 0;
-  const level = extendedProgress?.level || 1;
-  const rewards = Math.floor((extendedProgress?.xp || 0) / 100) || 0;
+  const level = 1; // Always start at level 1
+  const rewards = Math.floor((extendedProgress?.xp || 0) / 10) || 0;
+  
+  // Data for the pie chart
+  const completedXP = extendedProgress ? extendedProgress.xp % 100 : 0;
+  const remainingXP = extendedProgress ? (extendedProgress.xpToNextLevel || 100) : 100;
+  
+  const progressData = [
+    { name: 'Completed', value: completedXP, color: '#3b82f6' },
+    { name: 'Remaining', value: remainingXP, color: '#e5e7eb' },
+  ];
   
   // Helper function to safely access UserProgress properties
   const getProgressValue = <T extends keyof ExtendedUserProgress>(
@@ -181,7 +201,7 @@ export default function StudentDashboard() {
       id,
       name: id.charAt(0).toUpperCase() + id.slice(1),
       progress: data.progress,
-      level: Math.floor(data.xp / 100) + 1,
+      level: 1, // Set subject level to 1
       completedLessons: data.lessonsCompleted || 0,
       totalLessons: (data.lessonsCompleted || 0) + 5, // Assuming 5 more lessons to complete
     }));
@@ -189,13 +209,13 @@ export default function StudentDashboard() {
 
   // Generate weekly progress data based on user activity
   const weeklyProgress: HeatmapData[] = [
-    { date: '2023-01-01', value: 120, level: 2 },
+    { date: '2023-01-01', value: 120, level: 1 },
     { date: '2023-01-02', value: 85, level: 1 },
-    { date: '2023-01-03', value: 150, level: 3 },
-    { date: '2023-01-04', value: 95, level: 2 },
-    { date: '2023-01-05', value: 180, level: 3 },
-    { date: '2023-01-06', value: 200, level: 4 },
-    { date: '2023-01-07', value: 110, level: 2 },
+    { date: '2023-01-03', value: 150, level: 1 },
+    { date: '2023-01-04', value: 95, level: 1 },
+    { date: '2023-01-05', value: 180, level: 1 },
+    { date: '2023-01-06', value: 200, level: 1 },
+    { date: '2023-01-07', value: 110, level: 1 },
   ]
 
   interface SubjectAnalytics {
@@ -327,14 +347,14 @@ export default function StudentDashboard() {
     },
     { id: "games", label: "Games", icon: Gamepad2 },
     { id: "profile", label: "Profile", icon: User },
-    { id: "settings", label: "Settings", icon: Settings },
-    { id: "support", label: "Support", icon: HelpCircle },
+    { id: "settings", label: "Settings", icon: Settings }
   ]
 
   const handleNavigation = (pageId: string) => {
     console.log('Navigating to:', pageId); // Debug log
+    
     // Ensure the page ID is valid before updating state
-    if (['home', 'lessons', 'progress', 'games', 'profile', 'settings', 'support', 'pomodoro-timer', 'progress-overview'].includes(pageId)) {
+    if (['home', 'lessons', 'progress', 'games', 'profile', 'settings', 'pomodoro-timer', 'progress-overview'].includes(pageId)) {
       setCurrentPage(pageId as StudentPage);
       // Close any open dropdown menus
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -371,12 +391,39 @@ export default function StudentDashboard() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total XP</CardTitle>
-                  <Zap className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Progress</CardTitle>
+                  <PieChart className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{extendedProgress?.totalXP || 0}</div>
-                  <p className="text-xs text-muted-foreground">+20% from last month</p>
+                <CardContent className="pt-0">
+                  <div className="h-[100px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsPieChart>
+                        <Pie
+                          data={progressData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={30}
+                          outerRadius={40}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {progressData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </RechartsPieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex justify-between text-xs text-center mt-2">
+                    <div>
+                      <div className="font-medium">{progressData[0].value}%</div>
+                      <div className="text-muted-foreground">Complete</div>
+                    </div>
+                    <div>
+                      <div className="font-medium">{extendedProgress?.totalXP || 0}</div>
+                      <div className="text-muted-foreground">Total XP</div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
               <Card>
@@ -385,10 +432,16 @@ export default function StudentDashboard() {
                   <Trophy className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{extendedProgress?.level || 1}</div>
+                  <div className="text-2xl font-bold">1</div>
                   <p className="text-xs text-muted-foreground">
                     {extendedProgress?.xpToNextLevel ? `${extendedProgress.xpToNextLevel} XP to next level` : 'Max level reached'}
                   </p>
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full" 
+                      style={{ width: `${100 - (extendedProgress?.xpToNextLevel || 0)}%` }}
+                    ></div>
+                  </div>
                 </CardContent>
               </Card>
               <Card>
@@ -630,8 +683,16 @@ export default function StudentDashboard() {
           </nav>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon">
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative"
+            >
               <Bell className="h-4 w-4" />
+              {notifications.some(n => !n.read) && (
+                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500"></span>
+              )}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -671,8 +732,60 @@ export default function StudentDashboard() {
         </div>
       </header>
 
+      {/* Notification Panel */}
+      <div 
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
+          showNotifications ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setShowNotifications(false)}
+      ></div>
+      <div 
+        className={`fixed top-0 right-0 h-full w-80 bg-background border-l shadow-lg z-50 transform transition-transform duration-300 ease-in-out ${
+          showNotifications ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="p-4 border-b flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Notifications</h2>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setShowNotifications(false)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </Button>
+        </div>
+        <div className="p-4">
+          {notifications.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Bell className="mx-auto h-8 w-8 mb-2 opacity-50" />
+              <p>No notifications yet</p>
+              <p className="text-xs mt-1">We'll notify you when there's something new</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((notification) => (
+                <div 
+                  key={notification.id}
+                  className={`p-3 rounded-lg border ${
+                    !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-background'
+                  }`}
+                >
+                  <p className="text-sm">{notification.message}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{notification.date}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-4 md:p-6">
+      <main className={`flex-1 overflow-y-auto p-4 md:p-6 transition-all duration-300 ${
+        showNotifications ? 'mr-80' : ''
+      }`}>
         {currentPage === 'pomodoro-timer' ? (
           <div className="container mx-auto max-w-4xl">
             <PomodoroTimer />

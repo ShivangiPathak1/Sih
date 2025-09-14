@@ -1,20 +1,21 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { RotateCw, ArrowLeft, Check, X } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
+import { RotateCw, ArrowLeft, Check, X, Target } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { GoalTracker, type GoalTrackerRef } from "@/components/goals/goal-tracker-fixed"
 
 type Operator = '+' | '-' | '×' | '÷'
 
 interface MathOption {
-  id: string  // Changed to string type
+  id: string
   value: number
   isCorrect: boolean
-  position: number  // Added to track position
+  position: number
 }
 
 interface MathProblem {
@@ -42,32 +43,31 @@ const generateProblem = (difficulty: number): MathProblem => {
   const operator = operators[Math.floor(Math.random() * operators.length)]
   let num1 = Math.floor(Math.random() * maxNum) + 1
   let num2 = Math.floor(Math.random() * maxNum) + 1
-  let answer: number
+  let answer: number = 0;
   
   switch (operator) {
     case '+':
-      answer = num1 + num2
-      break
+      answer = num1 + num2;
+      break;
     case '-':
-      // Ensure we don't get negative numbers for subtraction
-      if (num2 > num1) [num1, num2] = [num2, num1]
-      answer = num1 - num2
-      break
+      if (num2 > num1) [num1, num2] = [num2, num1];
+      answer = num1 - num2;
+      break;
     case '×':
-      answer = num1 * num2
-      break
+      answer = num1 * num2;
+      break;
     case '÷':
-      // For division, make sure it's a whole number
-      num1 = num1 * num2
-      answer = num1 / num2
-      break
+      num1 = num1 * num2;
+      answer = num1 / num2;
+      break;
+    default:
+      answer = num1 + num2;
+      break;
   }
   
-  // Generate wrong answers with a fixed offset from the correct answer
   const wrongAnswers = new Set<number>();
   const offsets = [-4, -3, -2, -1, 1, 2, 3, 4];
   
-  // First try fixed offsets
   for (const offset of offsets) {
     const wrongAnswer = answer + offset;
     if (wrongAnswer > 0 && wrongAnswer !== answer) {
@@ -76,7 +76,6 @@ const generateProblem = (difficulty: number): MathProblem => {
     }
   }
   
-  // If we still don't have enough wrong answers, try random ones
   let attempts = 0;
   const maxAttempts = 100;
   while (wrongAnswers.size < 3 && attempts < maxAttempts) {
@@ -87,7 +86,6 @@ const generateProblem = (difficulty: number): MathProblem => {
     }
   }
   
-  // If we still don't have enough, just use some defaults
   if (wrongAnswers.size < 3) {
     [1, 2, 3].forEach(n => {
       if (n !== answer) wrongAnswers.add(n);
@@ -96,7 +94,6 @@ const generateProblem = (difficulty: number): MathProblem => {
   
   const wrongAnswersArray = Array.from(wrongAnswers);
   
-  // Create options with stable positions
   const options: MathOption[] = [
     { id: 'a', value: answer, isCorrect: true, position: 0 },
     { id: 'b', value: wrongAnswersArray[0], isCorrect: false, position: 1 },
@@ -104,7 +101,6 @@ const generateProblem = (difficulty: number): MathProblem => {
     { id: 'd', value: wrongAnswersArray[2], isCorrect: false, position: 3 }
   ];
   
-  // Always maintain the same order based on position
   options.sort((a, b) => a.position - b.position);
   
   return { num1, num2, operator, answer, options }
@@ -115,7 +111,6 @@ interface MathChallengeGameProps {
   onBack?: () => void;
 }
 
-// Create a default problem to use as initial state
 const DEFAULT_PROBLEM: MathProblem = {
   num1: 2,
   num2: 2,
@@ -136,11 +131,23 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
   const [isGameOver, setIsGameOver] = useState(false)
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [showResult, setShowResult] = useState(false)
-  const [difficulty, setDifficulty] = useState(1)
+  const [difficulty] = useState(1)
   const [problemCount, setProblemCount] = useState(0)
+  const [showGoalTracker, setShowGoalTracker] = useState(false)
+  
+  interface ActiveGoal {
+    title: string;
+    progress: number;
+    current: number;
+    target: number;
+    unit?: string;
+  }
+  
+  const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null)
+  const totalProblems = 10
+  const goalTrackerRef = useRef<GoalTrackerRef>(null)
   const router = useRouter()
 
-  // Initialize the first problem when the component mounts
   useEffect(() => {
     const initializeGame = async () => {
       try {
@@ -157,17 +164,16 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
   
   const nextProblem = useCallback(() => {
     try {
-      const newProblem = generateProblem(difficulty);
+      const newProblem = generateProblem(1);
       setProblem(newProblem);
       setSelectedAnswer(null);
       setShowResult(false);
       setProblemCount(prev => prev + 1);
     } catch (error) {
       console.error('Error generating problem:', error);
-      // Fallback to default problem if generation fails
       setProblem(DEFAULT_PROBLEM);
     }
-  }, [difficulty]);
+  }, []);
   
   useEffect(() => {
     if (timeLeft > 0 && !isGameOver) {
@@ -177,14 +183,39 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
       setIsGameOver(true)
       onComplete(score)
     }
-  }, [timeLeft, isGameOver, score, onComplete])
+  }, [timeLeft, isGameOver, onComplete, score])
   
   useEffect(() => {
-    // Increase difficulty every 5 problems
-    if (problemCount > 0 && problemCount % 5 === 0 && difficulty < 3) {
-      setDifficulty(prev => Math.min(prev + 1, 3))
+    if (problemCount >= totalProblems) {
+      setIsGameOver(true)
+      onComplete(score)
     }
-  }, [problemCount, difficulty])
+  }, [problemCount, onComplete, score, totalProblems])
+
+  // Update active goal info when goals change
+  useEffect(() => {
+    const updateActiveGoal = () => {
+      if (goalTrackerRef.current) {
+        const goal = goalTrackerRef.current.getActiveGoal()
+        if (goal) {
+          setActiveGoal({
+            title: goal.title,
+            progress: Math.round((goal.current / goal.target) * 100),
+            current: goal.current,
+            target: goal.target,
+            unit: goal.unit
+          })
+        } else {
+          setActiveGoal(null)
+        }
+      }
+    }
+    
+    updateActiveGoal()
+    // Check for updates every 5 seconds
+    const timer = setInterval(updateActiveGoal, 5000)
+    return () => clearInterval(timer)
+  }, [])
 
   const handleAnswer = useCallback((option: MathOption) => {
     if (showResult) return;
@@ -192,10 +223,28 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
     setSelectedAnswer(option.id);
     const isCorrect = option.value === problem.answer;
     
-    setScore(prevScore => {
-      const newScore = isCorrect ? prevScore + (10 * difficulty) : prevScore;
-      return newScore;
-    });
+    if (isCorrect) {
+      // Update progress in the goal tracker
+      if (goalTrackerRef.current?.updateProgress) {
+        const updated = goalTrackerRef.current.updateProgress(1);
+        if (updated) {
+          // Force UI update by getting the latest goal state
+          const goal = goalTrackerRef.current.getActiveGoal();
+          if (goal) {
+            setActiveGoal({
+              title: goal.title,
+              progress: Math.round((goal.current / goal.target) * 100),
+              current: goal.current,
+              target: goal.target,
+              unit: goal.unit
+            });
+          }
+        }
+      }
+      
+      // Update score
+      setScore(prevScore => prevScore + (10 * difficulty));
+    }
     
     setShowResult(true);
     
@@ -210,72 +259,43 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
     }, 1500);
     
     return () => clearTimeout(timer);
-  }, [showResult, problem.answer, difficulty, timeLeft, nextProblem, score, onComplete]);
+  }, [problem.answer, showResult, timeLeft, nextProblem, onComplete, score, difficulty]);
 
-  const restartGame = () => {
+  const restartGame = useCallback(() => {
+    setScore(0);
+    setTimeLeft(60);
+    setSelectedAnswer(null);
+    setShowResult(false);
+    setProblemCount(0);
+    setIsGameOver(false);
     try {
-      setProblem(generateProblem(1));
-      setScore(0);
-      setTimeLeft(60);
-      setDifficulty(1);
-      setProblemCount(0);
-      setIsGameOver(false);
-      setSelectedAnswer(null);
-      setShowResult(false);
+      const newProblem = generateProblem(1);
+      setProblem(newProblem);
     } catch (error) {
-      console.error('Error restarting game:', error);
-      // Fallback to a simple problem if generation fails
-      setProblem({
-        num1: 2,
-        num2: 2,
-        operator: '+',
-        answer: 4,
-        options: [
-          { id: 'a', value: 4, isCorrect: true, position: 0 },
-          { id: 'b', value: 3, isCorrect: false, position: 1 },
-          { id: 'c', value: 5, isCorrect: false, position: 2 },
-          { id: 'd', value: 6, isCorrect: false, position: 3 }
-        ]
-      });
+      console.error('Error generating problem:', error);
+      setProblem(DEFAULT_PROBLEM);
     }
-  }
-
+  }, []);
 
   if (isGameOver) {
     return (
       <Card className="w-full max-w-md mx-auto">
-        <CardHeader className="relative">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute left-4 top-4"
-            onClick={onBack}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <CardTitle className="text-2xl font-bold text-center">Game Over!</CardTitle>
+        <CardHeader>
+          <CardTitle className="text-center">Game Over!</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold mb-2">{score}</p>
-            <p className="text-muted-foreground">Your Score, User</p>
-          </div>
-          
-          <div className="flex flex-col gap-3">
-            <Button 
-              variant="outline" 
-              onClick={restartGame}
-              className="w-full"
-            >
-              <RotateCw className="mr-2 h-4 w-4" />
+        <CardContent className="space-y-4 text-center">
+          <div className="text-2xl font-bold">Your Score: {score}</div>
+          <div className="flex justify-center gap-2">
+            <Button onClick={restartGame} className="gap-2">
+              <RotateCw className="h-4 w-4" />
               Play Again
             </Button>
-            <Button 
-              onClick={() => onComplete(score)}
-              className="w-full"
-            >
-              Done
-            </Button>
+            {onBack && (
+              <Button variant="outline" onClick={onBack}>
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to Menu
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -283,61 +303,120 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle>Math Challenge</CardTitle>
+    <div className="space-y-4 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="font-medium">Score: {score}</div>
-            <div className="w-20">
-              <Progress value={(timeLeft / 60) * 100} className="h-2" />
-              <div className="text-xs text-right">{timeLeft}s</div>
-            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowGoalTracker(!showGoalTracker)}
+              className="gap-2 relative"
+            >
+              <Target className="h-4 w-4" />
+              {showGoalTracker ? 'Hide Goals' : 'My Goals'}
+              {activeGoal && (
+                <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {activeGoal.progress}%
+                </span>
+              )}
+            </Button>
+            {activeGoal && !showGoalTracker && (
+              <div className="text-sm text-muted-foreground hidden sm:flex items-center gap-1">
+                <span className="truncate max-w-[120px]">{activeGoal.title}:</span>
+                <span className="font-medium">{activeGoal.current}/{activeGoal.target} {activeGoal.unit}</span>
+                <span className="text-muted-foreground/70">({activeGoal.progress}%)</span>
+              </div>
+            )}
+          </div>
+          <div className="font-medium">Score: {score}</div>
+          <div className="text-sm text-muted-foreground">
+            Time: <span className="font-medium">{timeLeft}s</span>
           </div>
         </div>
         <div className="text-sm text-muted-foreground">
-          Difficulty: {['Easy', 'Medium', 'Hard'][difficulty - 1]}
+          Problem: {problemCount + 1}/{totalProblems}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="text-4xl font-bold text-center py-8 bg-muted/50 rounded-lg">
-          {problem.num1} {problem.operator} {problem.num2} = ?
-        </div>
-        
-        <div className="grid grid-cols-2 gap-3">
-          {problem.options.map((option) => {
-            const isSelected = selectedAnswer === option.id;
-            const isCorrectOption = option.value === problem.answer;
-            
-            let buttonVariant: "default" | "secondary" | "destructive" | "outline" = "outline";
-            
-            if (showResult) {
-              if (isSelected) {
-                buttonVariant = isCorrectOption ? "default" : "destructive";
-              } else if (isCorrectOption) {
-                buttonVariant = "default";
-              }
-            }
-
-            return (
-              <div key={option.id} className="w-full">
-                <Button
-                  variant={buttonVariant}
-                  className="w-full"
-                  onClick={() => handleAnswer(option)}
-                  disabled={showResult}
-                >
-                  {option.value}
-                </Button>
+      </div>
+      
+      {showGoalTracker && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <GoalTracker 
+              ref={goalTrackerRef}
+              onGoalUpdate={(goal) => {
+                if (goal) {
+                  setActiveGoal({
+                    title: goal.title,
+                    progress: Math.round((goal.current / goal.target) * 100),
+                    current: goal.current,
+                    target: goal.target,
+                    unit: goal.unit
+                  });
+                } else {
+                  setActiveGoal(null);
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+      
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>Math Challenge</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="font-medium">Score: {score}</div>
+              <div className="h-8 w-px bg-border mx-2"></div>
+              <div className="text-sm text-muted-foreground">
+                Time: <span className="font-medium">{timeLeft}s</span>
               </div>
-            )
-          })}
-        </div>
-        
-        <div className="text-sm text-muted-foreground text-center">
-          Problem {problemCount + 1}
-        </div>
-      </CardContent>
-    </Card>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="text-center space-y-2">
+            <div className="text-4xl font-bold">
+              {problem.num1} {problem.operator} {problem.num2} = ?
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Select the correct answer
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            {problem.options.map((option) => (
+              <Button
+                key={option.id}
+                variant={selectedAnswer === option.id 
+                  ? option.isCorrect ? 'default' : 'destructive'
+                  : 'outline'}
+                size="lg"
+                className="h-16 text-lg relative"
+                onClick={() => handleAnswer(option)}
+                disabled={showResult && !option.isCorrect}
+              >
+                {option.value}
+                {showResult && option.isCorrect && (
+                  <Check className="h-5 w-5 ml-2 text-green-500" />
+                )}
+                {showResult && selectedAnswer === option.id && !option.isCorrect && (
+                  <X className="h-5 w-5 ml-2 text-red-500" />
+                )}
+              </Button>
+            ))}
+          </div>
+          
+          <div className="pt-4">
+            <div className="flex justify-between text-sm text-muted-foreground mb-1">
+              <span>Progress</span>
+              <span>{problemCount + 1} of {totalProblems} problems</span>
+            </div>
+            <Progress value={((problemCount) / totalProblems) * 100} className="h-2" />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
