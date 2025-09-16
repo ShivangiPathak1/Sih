@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+// Custom progress bar component
+const Progress = ({ value, className = "" }: { value: number; className?: string }) => (
+  <div className={`bg-muted rounded-full h-2 w-full overflow-hidden ${className}`}>
+    <div 
+      className="bg-primary h-full rounded-full transition-all duration-300" 
+      style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+    />
+  </div>
+)
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

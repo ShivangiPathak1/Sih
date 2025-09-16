@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { Settings, Bell, Volume2, Shield, Zap } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { useSettings } from "@/hooks/use-settings"
+import { Settings, Bell, Volume2, Shield, Zap, Loader2 } from "lucide-react"
 
 interface SettingsState {
   // Notifications
@@ -37,69 +39,86 @@ interface SettingsState {
 
 export function StudentSettings() {
   const { toast } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({
-    // Notifications
-    pushNotifications: true,
-    emailNotifications: false,
-    achievementAlerts: true,
-    dailyReminders: true,
+  const { user } = useAuth()
+  const {
+    settings,
+    isLoading,
+    updateSetting,
+    resetToDefaults: resetSettings,
+    playSound
+  } = useSettings()
+  const [isSaving, setIsSaving] = useState(false)
 
-    // Audio
-    soundEffects: true,
-    backgroundMusic: false,
-    volume: 70,
-
-    // Learning
-    language: "english",
-    difficultyLevel: "medium",
-    studyReminders: true,
-    pomodoroLength: 25,
-
-    // Privacy
-    profileVisibility: "friends",
-    shareProgress: true,
-    dataCollection: true,
-  })
-
-  const updateSetting = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
-    setSettings((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const saveSettings = async () => {
+  // Handle individual setting updates with sound feedback
+  const handleUpdateSetting = async <K extends keyof SettingsState>(
+    key: K, 
+    value: SettingsState[K]
+  ) => {
     try {
-      // Here you would save to Firestore
-      // await updateUserSettings(userId, settings)
-
-      toast({
-        title: "Settings Saved! ✅",
-        description: "Your preferences have been updated successfully.",
-      })
+      await updateSetting(key, value)
+      playSound('click')
     } catch (error) {
+      console.error('Error updating setting:', error)
       toast({
         title: "Error",
-        description: "Failed to save settings. Please try again.",
+        description: "Failed to update setting. Please try again.",
         variant: "destructive",
       })
     }
   }
 
-  const resetToDefaults = () => {
-    setSettings({
-      pushNotifications: true,
-      emailNotifications: false,
-      achievementAlerts: true,
-      dailyReminders: true,
-      soundEffects: true,
-      backgroundMusic: false,
-      volume: 70,
-      language: "english",
-      difficultyLevel: "medium",
-      studyReminders: true,
-      pomodoroLength: 25,
-      profileVisibility: "friends",
-      shareProgress: true,
-      dataCollection: true,
-    })
+  const saveSettings = async () => {
+    try {
+      setIsSaving(true)
+      playSound('success')
+      toast({
+        title: "Settings Saved! ✅",
+        description: "Your preferences have been updated successfully.",
+      })
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      playSound('error')
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const resetToDefaults = async () => {
+    try {
+      setIsSaving(true)
+      await resetSettings()
+      playSound('success')
+      toast({
+        title: "Settings Reset",
+        description: "All settings have been reset to default values.",
+      })
+    } catch (error) {
+      console.error('Error resetting settings:', error)
+      playSound('error')
+      toast({
+        title: "Error",
+        description: "Failed to reset settings. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading settings...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -110,10 +129,26 @@ export function StudentSettings() {
           <p className="text-muted-foreground">Manage your account settings and preferences</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={resetToDefaults}>
+          <Button 
+            variant="outline" 
+            onClick={resetToDefaults}
+            disabled={isSaving}
+          >
             Reset to Defaults
           </Button>
-          <Button onClick={saveSettings}>Save Changes</Button>
+          <Button 
+            onClick={saveSettings}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
+          </Button>
         </div>
       </div>
 
@@ -157,7 +192,7 @@ export function StudentSettings() {
                   <Switch
                     id="push-notifications"
                     checked={settings.pushNotifications}
-                    onCheckedChange={(checked) => updateSetting("pushNotifications", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("pushNotifications", checked)}
                   />
                 </div>
 
@@ -171,7 +206,7 @@ export function StudentSettings() {
                   <Switch
                     id="email-notifications"
                     checked={settings.emailNotifications}
-                    onCheckedChange={(checked) => updateSetting("emailNotifications", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("emailNotifications", checked)}
                   />
                 </div>
 
@@ -185,7 +220,7 @@ export function StudentSettings() {
                   <Switch
                     id="achievement-alerts"
                     checked={settings.achievementAlerts}
-                    onCheckedChange={(checked) => updateSetting("achievementAlerts", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("achievementAlerts", checked)}
                   />
                 </div>
 
@@ -199,7 +234,7 @@ export function StudentSettings() {
                   <Switch
                     id="daily-reminders"
                     checked={settings.dailyReminders}
-                    onCheckedChange={(checked) => updateSetting("dailyReminders", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("dailyReminders", checked)}
                   />
                 </div>
               </div>
@@ -216,6 +251,32 @@ export function StudentSettings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <h4 className="font-medium mb-2">Current Audio Settings</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Sound Effects: </span>
+                    <span className={settings.soundEffects ? 'text-green-600' : 'text-red-600'}>
+                      {settings.soundEffects ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Background Music: </span>
+                    <span className={settings.backgroundMusic ? 'text-green-600' : 'text-red-600'}>
+                      {settings.backgroundMusic ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Volume Level: </span>
+                    <span className="font-medium">{settings.volume}%</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Auto-save: </span>
+                    <span className="text-green-600">Active</span>
+                  </div>
+                </div>
+              </div>
+              
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
@@ -227,7 +288,7 @@ export function StudentSettings() {
                   <Switch
                     id="sound-effects"
                     checked={settings.soundEffects}
-                    onCheckedChange={(checked) => updateSetting("soundEffects", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("soundEffects", checked)}
                   />
                 </div>
 
@@ -241,7 +302,7 @@ export function StudentSettings() {
                   <Switch
                     id="background-music"
                     checked={settings.backgroundMusic}
-                    onCheckedChange={(checked) => updateSetting("backgroundMusic", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("backgroundMusic", checked)}
                   />
                 </div>
 
@@ -253,7 +314,7 @@ export function StudentSettings() {
                     max={100}
                     step={1}
                     value={[settings.volume]}
-                    onValueChange={(value) => updateSetting("volume", value[0])}
+                    onValueChange={(value) => handleUpdateSetting("volume", value[0])}
                     className="mt-4"
                   />
                 </div>
@@ -275,16 +336,22 @@ export function StudentSettings() {
                 <Label htmlFor="language">Language</Label>
                 <Select
                   value={settings.language}
-                  onValueChange={(value) => updateSetting("language", value)}
+                  onValueChange={(value) => handleUpdateSetting("language", value)}
                 >
                   <SelectTrigger className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="english">English</SelectItem>
-                    <SelectItem value="spanish">Spanish</SelectItem>
-                    <SelectItem value="french">French</SelectItem>
-                    <SelectItem value="german">German</SelectItem>
+                    <SelectItem value="hindi">Hindi (हिंदी)</SelectItem>
+                    <SelectItem value="odia">Odia (ଓଡ଼ିଆ)</SelectItem>
+                    <SelectItem value="bengali">Bengali (বাংলা)</SelectItem>
+                    <SelectItem value="telugu">Telugu (తెలుగు)</SelectItem>
+                    <SelectItem value="tamil">Tamil (தமிழ்)</SelectItem>
+                    <SelectItem value="gujarati">Gujarati (ગુજરાતી)</SelectItem>
+                    <SelectItem value="marathi">Marathi (मराठी)</SelectItem>
+                    <SelectItem value="kannada">Kannada (ಕನ್ನಡ)</SelectItem>
+                    <SelectItem value="malayalam">Malayalam (മലയാളം)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -294,7 +361,7 @@ export function StudentSettings() {
                 <Select
                   value={settings.difficultyLevel}
                   onValueChange={(value: "easy" | "medium" | "hard") =>
-                    updateSetting("difficultyLevel", value)
+                    handleUpdateSetting("difficultyLevel", value)
                   }
                 >
                   <SelectTrigger className="mt-2">
@@ -318,7 +385,7 @@ export function StudentSettings() {
                 <Switch
                   id="study-reminders"
                   checked={settings.studyReminders}
-                  onCheckedChange={(checked) => updateSetting("studyReminders", checked)}
+                  onCheckedChange={(checked) => handleUpdateSetting("studyReminders", checked)}
                 />
               </div>
 
@@ -330,7 +397,7 @@ export function StudentSettings() {
                   max={60}
                   step={5}
                   value={[settings.pomodoroLength]}
-                  onValueChange={(value) => updateSetting("pomodoroLength", value[0])}
+                  onValueChange={(value) => handleUpdateSetting("pomodoroLength", value[0])}
                   className="mt-4"
                 />
               </div>
@@ -352,7 +419,7 @@ export function StudentSettings() {
                 <Select
                   value={settings.profileVisibility}
                   onValueChange={(value: "public" | "friends" | "private") =>
-                    updateSetting("profileVisibility", value)
+                    handleUpdateSetting("profileVisibility", value)
                   }
                 >
                   <SelectTrigger className="mt-2">
@@ -377,7 +444,7 @@ export function StudentSettings() {
                   <Switch
                     id="share-progress"
                     checked={settings.shareProgress}
-                    onCheckedChange={(checked) => updateSetting("shareProgress", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("shareProgress", checked)}
                   />
                 </div>
 
@@ -391,7 +458,7 @@ export function StudentSettings() {
                   <Switch
                     id="data-collection"
                     checked={settings.dataCollection}
-                    onCheckedChange={(checked) => updateSetting("dataCollection", checked)}
+                    onCheckedChange={(checked) => handleUpdateSetting("dataCollection", checked)}
                   />
                 </div>
               </div>

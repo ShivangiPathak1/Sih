@@ -6,6 +6,8 @@ import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
 import { AuthProvider } from "@/lib/auth-context"
+import { LanguageProvider } from "@/lib/language-context"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -35,10 +37,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${dmSans.variable} ${GeistMono.variable} antialiased`}>
         <Suspense fallback={null}>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-            <AuthProvider>
-              {children}
-            </AuthProvider>
+          <ThemeProvider 
+            attribute="class" 
+            defaultTheme="light" 
+            enableSystem 
+            disableTransitionOnChange
+          >
+            <LanguageProvider>
+              <AuthProvider>
+                {children}
+                <Toaster />
+              </AuthProvider>
+            </LanguageProvider>
           </ThemeProvider>
           <Analytics />
         </Suspense>

@@ -27,10 +27,19 @@ export function SynonymShowdownGame({ onComplete, onBack }: SynonymShowdownGameP
   const [timeLeft, setTimeLeft] = useState(90)
   const [isGameOver, setIsGameOver] = useState(false)
   const [showResult, setShowResult] = useState(false)
+  const [currentOptions, setCurrentOptions] = useState<string[]>([])
   const router = useRouter()
   
   const currentWord = SYNONYMS[currentIndex % SYNONYMS.length]
-  const shuffledOptions = [...currentWord.options].sort(() => Math.random() - 0.5)
+  
+  // Generate stable options for the current question
+  useEffect(() => {
+    const generateOptions = () => {
+      return [...currentWord.options].sort(() => Math.random() - 0.5)
+    }
+    
+    setCurrentOptions(generateOptions())
+  }, [currentIndex, currentWord.options])
   
   useEffect(() => {
     if (timeLeft > 0 && !isGameOver) {
@@ -85,6 +94,7 @@ export function SynonymShowdownGame({ onComplete, onBack }: SynonymShowdownGameP
     setTimeLeft(90)
     setIsGameOver(false)
     setShowResult(false)
+    setCurrentOptions([])
   }
 
   if (isGameOver) {
@@ -151,7 +161,7 @@ export function SynonymShowdownGame({ onComplete, onBack }: SynonymShowdownGameP
         </div>
         
         <div className="grid grid-cols-2 gap-3">
-          {shuffledOptions.map((option) => {
+          {currentOptions.map((option: string) => {
             const isSelected = selectedOptions.includes(option)
             const isCorrect = currentWord.correct.includes(option)
             

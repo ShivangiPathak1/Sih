@@ -10,7 +10,17 @@ import { updateProfile } from "firebase/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { LanguageSelector } from "@/components/ui/language-selector"
+import { useLanguage } from "@/lib/language-context"
+// Custom progress bar component
+const Progress = ({ value, className = "" }: { value: number; className?: string }) => (
+  <div className={`bg-muted rounded-full h-2 w-full overflow-hidden ${className}`}>
+    <div 
+      className="bg-primary h-full rounded-full transition-all duration-300" 
+      style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+    />
+  </div>
+)
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -83,12 +93,26 @@ import { getLeaderboard } from "@/lib/firestore-services"
 import { RewardStore } from "@/components/gamification/reward-store"
 import { PerformanceHeatmap } from "@/components/analytics/performance-heatmap"
 import { fcmService } from "@/lib/fcm-service"
-import { StudentProfile } from "@/components/profile/student-profile"
 import { StudentSettings } from "@/components/settings/student-settings"
 import { SubjectManager } from "@/components/subjects/subject-manager"
 import { ComprehensiveGameHub } from "@/components/games/comprehensive-game-hub"
+import { GoalTracker } from "@/components/goals/goal-tracker-fixed"
 
-type StudentPage = "home" | "lessons" | "progress" | "games" | "profile" | "settings" | "support" | "pomodoro-timer" | "progress-overview"
+const StudentProfile = dynamic(
+  () => import('@/components/profile/student-profile').then(mod => mod.StudentProfile),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+);
+
+
+
+type StudentPage = "home" | "lessons" | "games" | "profile" | "settings" | "pomodoro-timer"
 
 interface Challenge {
   id: string
@@ -130,8 +154,9 @@ interface NavItem {
 export default function StudentDashboard() {
   const router = useRouter()
   const { user, signOut } = useAuth()
+  const { t } = useLanguage()
   const { toast } = useToast();
-  const { progress, loading } = useFirestoreProgress();
+  const { progress, loading } = useFirestoreProgress(user?.uid);
   
   const [currentPage, setCurrentPage] = useState<StudentPage>("home");
   
@@ -147,6 +172,30 @@ export default function StudentDashboard() {
       });
     }
   }, [user]);
+  
+  // Debug progress data
+  useEffect(() => {
+    console.log('StudentDashboard: Progress data changed:', {
+      progress,
+      loading,
+      hasProgressData: !!progress,
+      progressKeys: progress ? Object.keys(progress) : [],
+      subjects: progress?.subjects
+    });
+  }, [progress, loading]);
+  
+  // Handle escape key for closing modals
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowGoalTracker(false);
+        setShowProgressDashboard(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Array<{id: string; message: string; date: string; read: boolean}>>([
     // Example notification - can be removed or kept as a placeholder
@@ -162,6 +211,8 @@ export default function StudentDashboard() {
   // Review state
   const [reviewingMaterial, setReviewingMaterial] = useState<ReviewingMaterial | null>(null);
   const [isTimerRunning] = useState(false)
+  const [showGoalTracker, setShowGoalTracker] = useState(false)
+  const [showProgressDashboard, setShowProgressDashboard] = useState(false)
 
   // Transform progress to include additional properties
   const extendedProgress = progress ? {
@@ -243,15 +294,18 @@ export default function StudentDashboard() {
   ])
 
   const subjects = progress
-    ? Object.entries(progress.subjects).map(([key, data]) => ({
-        id: key,
-        subject: key.charAt(0).toUpperCase() + key.slice(1),
-        progress: data.progress,
-        level: Math.floor(data.xp / 100) + 1,
-        unlocked: data.progress > 0 || key === "mathematics",
-        color: key === "mathematics" ? "primary" : key === "science" ? "secondary" : "accent",
-        emoji: key === "mathematics" ? "🧮" : key === "science" ? "🔬" : key === "english" ? "📚" : "🏛️",
-      }))
+    ? Object.entries(progress.subjects).map(([key, data]) => {
+        console.log(`Subject ${key}:`, data); // Debug log
+        return {
+          id: key,
+          subject: key.charAt(0).toUpperCase() + key.slice(1),
+          progress: data.progress,
+          level: Math.floor(data.xp / 100) + 1,
+          unlocked: data.progress > 0 || key === "mathematics",
+          color: key === "mathematics" ? "primary" : key === "science" ? "secondary" : "accent",
+          emoji: key === "mathematics" ? "🧮" : key === "science" ? "🔬" : key === "english" ? "📚" : "🏛️",
+        };
+      })
     : []
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([
@@ -334,27 +388,19 @@ export default function StudentDashboard() {
   }
 
   const navItems: NavItem[] = [
-    { id: "home", label: "Home", icon: Home },
-    { id: "lessons", label: "Lessons", icon: BookOpen },
-    { 
-      id: "progress", 
-      label: "Progress", 
-      icon: BarChart3,
-      children: [
-        { id: "progress-overview", label: "Overview", icon: BarChart3 },
-        { id: "pomodoro-timer", label: "Pomodoro Timer", icon: Timer }
-      ]
-    },
-    { id: "games", label: "Games", icon: Gamepad2 },
-    { id: "profile", label: "Profile", icon: User },
-    { id: "settings", label: "Settings", icon: Settings }
+    { id: "home", label: t('home') || "Home", icon: Home },
+    { id: "lessons", label: t('lessons') || "Lessons", icon: BookOpen },
+    { id: "games", label: t('games') || "Games", icon: Gamepad2 },
+    { id: "pomodoro-timer", label: "Study Timer", icon: Timer },
+    { id: "profile", label: t('profile') || "Profile", icon: User },
+    { id: "settings", label: t('settings') || "Settings", icon: Settings }
   ]
 
   const handleNavigation = (pageId: string) => {
     console.log('Navigating to:', pageId); // Debug log
     
     // Ensure the page ID is valid before updating state
-    if (['home', 'lessons', 'progress', 'games', 'profile', 'settings', 'pomodoro-timer', 'progress-overview'].includes(pageId)) {
+    if (['home', 'lessons', 'games', 'profile', 'settings', 'pomodoro-timer'].includes(pageId)) {
       setCurrentPage(pageId as StudentPage);
       // Close any open dropdown menus
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -502,11 +548,11 @@ export default function StudentDashboard() {
                       <BookOpen className="mr-2 h-4 w-4" />
                       Continue Learning
                     </Button>
-                    <Button variant="outline" className="justify-start">
+                    <Button variant="outline" className="justify-start" onClick={() => setShowGoalTracker(true)}>
                       <Target className="mr-2 h-4 w-4" />
                       Set Daily Goal
                     </Button>
-                    <Button variant="outline" className="justify-start">
+                    <Button variant="outline" className="justify-start" onClick={() => setShowProgressDashboard(true)}>
                       <BarChart3 className="mr-2 h-4 w-4" />
                       View Progress
                     </Button>
@@ -518,14 +564,6 @@ export default function StudentDashboard() {
         );
       case "lessons":
         return <SubjectManager onReviewMaterial={handleReviewMaterial} />;
-      case "progress":
-        return <PerformanceHeatmap data={weeklyProgress} title="Performance Overview" metric="XP" />;
-      case "profile":
-        return <StudentProfile />;
-      case "settings":
-        return <StudentSettings />;
-      case "support":
-        return <div>Support Page</div>;
       case "games":
         return <ComprehensiveGameHub />;
       case "pomodoro-timer":
@@ -534,8 +572,10 @@ export default function StudentDashboard() {
             <PomodoroTimer />
           </div>
         );
-      case "progress-overview":
-        return <div>Progress Overview</div>;
+      case "profile":
+        return <StudentProfile />;
+      case "settings":
+        return <StudentSettings />;
       default:
         return null;
     }
@@ -630,6 +670,108 @@ export default function StudentDashboard() {
 
   return (
     <div className="flex h-screen flex-col">
+      {/* Goal Tracker Modal */}
+      {showGoalTracker && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Set Your Daily Goals</h2>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setShowGoalTracker(false)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </Button>
+              </div>
+              <GoalTracker />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress Dashboard Modal */}
+      {showProgressDashboard && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Your Progress Dashboard</h2>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setShowProgressDashboard(false)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </Button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Performance Heatmap */}
+                <PerformanceHeatmap data={weeklyProgress} title="Learning Activity" metric="XP" />
+                
+                {/* Subject Analytics */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Subject Progress</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {subjectAnalytics.map((subject) => (
+                        <div key={subject.subject} className="space-y-2 p-4 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">{subject.subject}</h4>
+                            <Badge variant="outline">{subject.accuracy}% accuracy</Badge>
+                          </div>
+                          <Progress value={(subject.completed / subject.total) * 100} className="h-2" />
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>{subject.completed}/{subject.total} lessons</span>
+                            <span>{subject.timeSpent} min total</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Overall Stats */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Overall Statistics</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{extendedProgress?.totalXP || 0}</div>
+                        <div className="text-sm text-muted-foreground">Total XP</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{extendedProgress?.streak || 0}</div>
+                        <div className="text-sm text-muted-foreground">Day Streak</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600">{progress?.totalLessonsCompleted || 0}</div>
+                        <div className="text-sm text-muted-foreground">Lessons Completed</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">{extendedProgress?.coins || 0}</div>
+                        <div className="text-sm text-muted-foreground">Coins Earned</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
@@ -640,45 +782,15 @@ export default function StudentDashboard() {
           
           <nav className="hidden md:flex items-center gap-2">
             {navItems.map((item) => (
-              item.children ? (
-                <DropdownMenu key={item.id}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center gap-1"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                      <ChevronDown className="ml-1 h-3 w-3 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {item.children.map((child) => (
-                      <DropdownMenuItem 
-                        key={child.id}
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          handleNavigation(child.id);
-                        }}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <child.icon className="h-4 w-4" />
-                        {child.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Button
-                  key={item.id}
-                  variant="ghost"
-                  onClick={() => setCurrentPage(item.id as StudentPage)}
-                  className="flex items-center gap-2"
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Button>
-              )
+              <Button
+                key={item.id}
+                variant="ghost"
+                onClick={() => setCurrentPage(item.id as StudentPage)}
+                className="flex items-center gap-2"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Button>
             ))}
           </nav>
           
@@ -694,6 +806,9 @@ export default function StudentDashboard() {
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500"></span>
               )}
             </Button>
+            
+            <LanguageSelector variant="outline" size="sm" />
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -717,7 +832,10 @@ export default function StudentDashboard() {
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer">
+                <DropdownMenuItem 
+                  className="cursor-pointer"
+                  onClick={() => setCurrentPage('settings')}
+                >
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
                 </DropdownMenuItem>

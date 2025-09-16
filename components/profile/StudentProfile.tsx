@@ -16,7 +16,7 @@ import { Edit, Loader2, Camera, User, BookOpen, Target, Trophy, Zap } from "luci
 
 export function StudentProfile() {
   const { user } = useAuth()
-  const { progress } = useFirestoreProgress()
+  const { progress } = useFirestoreProgress(user?.uid)
   const { toast } = useToast()
   const storage = getStorage()
   

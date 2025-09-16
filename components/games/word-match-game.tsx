@@ -37,16 +37,31 @@ export function WordMatchGame({ onComplete, onBack }: WordMatchGameProps) {
   const [score, setScore] = useState(0)
   const [timeLeft, setTimeLeft] = useState(60)
   const [isGameOver, setIsGameOver] = useState(false)
+  const [totalQuestions, setTotalQuestions] = useState(0)
+  const [correctAnswers, setCorrectAnswers] = useState(0)
+  const [startTime, setStartTime] = useState<number>(Date.now())
+  const [currentOptions, setCurrentOptions] = useState<string[]>([])
   const router = useRouter()
   
   const currentWord = WORDS[currentIndex]
-  const shuffledOptions = [...new Set([...OPTIONS].sort(() => Math.random() - 0.5))].slice(0, 4)
   
-  if (!shuffledOptions.includes(currentWord.meaning)) {
-    shuffledOptions[3] = currentWord.meaning
-    // Shuffle again to randomize position
-    shuffledOptions.sort(() => Math.random() - 0.5)
-  }
+  // Generate stable options for the current question
+  useEffect(() => {
+    const generateOptions = () => {
+      const shuffledOptions = [...OPTIONS].sort(() => Math.random() - 0.5).slice(0, 3)
+      
+      // Ensure the correct answer is included
+      if (!shuffledOptions.includes(currentWord.meaning)) {
+        shuffledOptions[2] = currentWord.meaning
+      }
+      
+      // Add the correct answer and shuffle once
+      const finalOptions = [...new Set([...shuffledOptions, currentWord.meaning])]
+      return finalOptions.sort(() => Math.random() - 0.5)
+    }
+    
+    setCurrentOptions(generateOptions())
+  }, [currentIndex, currentWord.meaning])
 
   useEffect(() => {
     if (timeLeft > 0 && !isGameOver) {
@@ -62,9 +77,11 @@ export function WordMatchGame({ onComplete, onBack }: WordMatchGameProps) {
     if (selectedOption) return // Prevent multiple selections
     
     setSelectedOption(option)
+    setTotalQuestions(prev => prev + 1)
     
     if (option === currentWord.meaning) {
       setScore(score + 10)
+      setCorrectAnswers(prev => prev + 1)
     }
     
     setTimeout(() => {
@@ -84,9 +101,27 @@ export function WordMatchGame({ onComplete, onBack }: WordMatchGameProps) {
     setScore(0)
     setTimeLeft(60)
     setIsGameOver(false)
+    setCurrentOptions([])
+    setTotalQuestions(0)
+    setCorrectAnswers(0)
+    setStartTime(Date.now())
   }
 
   if (isGameOver) {
+    const timeElapsed = Math.floor((Date.now() - startTime) / 1000)
+    const accuracy = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0
+    const wordsPerMinute = timeElapsed > 0 ? Math.round((totalQuestions * 60) / timeElapsed) : 0
+    
+    const getPerformanceGrade = () => {
+      if (accuracy >= 90) return { grade: 'A+', color: 'text-green-600', message: 'Outstanding vocabulary mastery!' }
+      if (accuracy >= 80) return { grade: 'A', color: 'text-green-500', message: 'Excellent word knowledge!' }
+      if (accuracy >= 70) return { grade: 'B', color: 'text-blue-500', message: 'Good vocabulary skills!' }
+      if (accuracy >= 60) return { grade: 'C', color: 'text-yellow-500', message: 'Keep practicing!' }
+      return { grade: 'D', color: 'text-red-500', message: 'More study needed!' }
+    }
+    
+    const performance = getPerformanceGrade()
+    
     return (
       <Card className="w-full max-w-md mx-auto">
         <CardHeader className="relative">
@@ -98,28 +133,62 @@ export function WordMatchGame({ onComplete, onBack }: WordMatchGameProps) {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <CardTitle className="text-2xl font-bold text-center">Game Over!</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">Vocabulary Results!</CardTitle>
+          <div className="text-center mt-2">
+            <span className={`text-6xl font-bold ${performance.color}`}>{performance.grade}</span>
+            <p className="text-sm text-muted-foreground mt-1">{performance.message}</p>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="text-center">
-            <p className="text-4xl font-bold mb-2">{score}</p>
-            <p className="text-muted-foreground">Your Score, User</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <div className="text-3xl font-bold text-blue-600">{score}</div>
+              <div className="text-sm text-muted-foreground">Final Score</div>
+            </div>
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <div className="text-3xl font-bold text-green-600">{accuracy}%</div>
+              <div className="text-sm text-muted-foreground">Accuracy</div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="font-bold text-lg">{correctAnswers}</div>
+              <div className="text-xs text-muted-foreground">Correct</div>
+            </div>
+            <div>
+              <div className="font-bold text-lg">{totalQuestions - correctAnswers}</div>
+              <div className="text-xs text-muted-foreground">Incorrect</div>
+            </div>
+            <div>
+              <div className="font-bold text-lg">{wordsPerMinute}</div>
+              <div className="text-xs text-muted-foreground">Words/Min</div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="text-sm font-medium mb-2">📊 Performance Summary</div>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div>• Time taken: {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s</div>
+              <div>• Questions answered: {totalQuestions} of {WORDS.length}</div>
+              <div>• Learning focus: {accuracy < 70 ? 'Review word meanings' : 'Expand vocabulary'}</div>
+            </div>
           </div>
           
           <div className="flex flex-col gap-3">
             <Button 
               variant="outline" 
-              onClick={() => window.location.reload()}
+              onClick={restartGame}
               className="w-full"
             >
               <RotateCw className="mr-2 h-4 w-4" />
-              Play Again
+              Practice Again
             </Button>
             <Button 
               onClick={() => onComplete(score)}
               className="w-full"
             >
-              Done
+              Continue Learning
             </Button>
           </div>
         </CardContent>
@@ -150,7 +219,7 @@ export function WordMatchGame({ onComplete, onBack }: WordMatchGameProps) {
         </div>
         
         <div className="grid grid-cols-1 gap-3">
-          {shuffledOptions.map((option) => {
+          {currentOptions.map((option: string) => {
             const isSelected = selectedOption === option
             const isCorrect = option === currentWord.meaning
             const showResult = selectedOption !== null

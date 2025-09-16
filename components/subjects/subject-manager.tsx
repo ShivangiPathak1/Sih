@@ -1,10 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+// Custom progress bar component
+const Progress = ({ value, className = "" }: { value: number; className?: string }) => (
+  <div className={`bg-muted rounded-full h-2 w-full overflow-hidden ${className}`}>
+    <div 
+      className="bg-primary h-full rounded-full transition-all duration-300" 
+      style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+    />
+  </div>
+)
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestoreProgress } from "@/hooks/use-firestore-progress"
@@ -52,8 +61,8 @@ const subjects: Subject[] = [
     emoji: "🧮",
     color: "bg-blue-500",
     progress: 65,
-    totalLessons: 20,
-    completedLessons: 13,
+    totalLessons: 25,
+    completedLessons: 16,
     xp: 450,
     materials: [
       {
@@ -96,6 +105,36 @@ const subjects: Subject[] = [
         locked: true,
         description: "Complex mathematical problem-solving techniques",
       },
+      {
+        id: "math-5",
+        title: "Trigonometry Basics",
+        type: "video",
+        duration: "18 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Introduction to sine, cosine, and tangent functions",
+      },
+      {
+        id: "math-6",
+        title: "Geometry Fundamentals",
+        type: "interactive",
+        duration: "22 min",
+        difficulty: "easy",
+        completed: false,
+        locked: false,
+        description: "Learn about shapes, angles, and geometric properties",
+      },
+      {
+        id: "math-7",
+        title: "Statistics and Probability",
+        type: "document",
+        duration: "28 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Introduction to data analysis and probability theory",
+      },
     ],
   },
   {
@@ -104,8 +143,8 @@ const subjects: Subject[] = [
     emoji: "🔬",
     color: "bg-green-500",
     progress: 80,
-    totalLessons: 15,
-    completedLessons: 12,
+    totalLessons: 20,
+    completedLessons: 16,
     xp: 380,
     materials: [
       {
@@ -138,6 +177,46 @@ const subjects: Subject[] = [
         locked: false,
         description: "Understanding motion, velocity, and forces",
       },
+      {
+        id: "sci-4",
+        title: "Solar System Exploration",
+        type: "video",
+        duration: "20 min",
+        difficulty: "easy",
+        completed: false,
+        locked: false,
+        description: "Journey through our solar system and beyond",
+      },
+      {
+        id: "sci-5",
+        title: "DNA and Genetics",
+        type: "interactive",
+        duration: "30 min",
+        difficulty: "hard",
+        completed: false,
+        locked: false,
+        description: "Discover the building blocks of life",
+      },
+      {
+        id: "sci-6",
+        title: "Periodic Table Mastery",
+        type: "document",
+        duration: "24 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Understanding elements and their properties",
+      },
+      {
+        id: "sci-7",
+        title: "Electricity and Magnetism",
+        type: "video",
+        duration: "26 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Explore the relationship between electricity and magnetism",
+      },
     ],
   },
   {
@@ -146,8 +225,8 @@ const subjects: Subject[] = [
     emoji: "📚",
     color: "bg-purple-500",
     progress: 45,
-    totalLessons: 18,
-    completedLessons: 8,
+    totalLessons: 22,
+    completedLessons: 10,
     xp: 290,
     materials: [
       {
@@ -180,6 +259,222 @@ const subjects: Subject[] = [
         locked: true,
         description: "Analyze classic literature and poetry",
       },
+      {
+        id: "eng-4",
+        title: "Vocabulary Building",
+        type: "interactive",
+        duration: "15 min",
+        difficulty: "easy",
+        completed: true,
+        locked: false,
+        description: "Expand your vocabulary with interactive exercises",
+      },
+      {
+        id: "eng-5",
+        title: "Public Speaking Skills",
+        type: "video",
+        duration: "25 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Build confidence in public speaking and presentations",
+      },
+      {
+        id: "eng-6",
+        title: "Poetry Appreciation",
+        type: "audio",
+        duration: "18 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Explore different forms and styles of poetry",
+      },
+      {
+        id: "eng-7",
+        title: "Essay Writing Techniques",
+        type: "document",
+        duration: "28 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Learn to write compelling and structured essays",
+      },
+    ],
+  },
+  {
+    id: "history",
+    name: "History",
+    emoji: "🏛️",
+    color: "bg-amber-500",
+    progress: 30,
+    totalLessons: 18,
+    completedLessons: 5,
+    xp: 150,
+    materials: [
+      {
+        id: "hist-1",
+        title: "Ancient Civilizations",
+        type: "video",
+        duration: "22 min",
+        difficulty: "easy",
+        completed: true,
+        locked: false,
+        description: "Explore the great civilizations of antiquity",
+      },
+      {
+        id: "hist-2",
+        title: "World War II Timeline",
+        type: "interactive",
+        duration: "30 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Interactive timeline of World War II events",
+      },
+      {
+        id: "hist-3",
+        title: "Medieval Europe",
+        type: "document",
+        duration: "25 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Life and culture in medieval Europe",
+      },
+      {
+        id: "hist-4",
+        title: "Renaissance Art and Culture",
+        type: "video",
+        duration: "20 min",
+        difficulty: "easy",
+        completed: false,
+        locked: false,
+        description: "The rebirth of art and learning in Europe",
+      },
+      {
+        id: "hist-5",
+        title: "Industrial Revolution",
+        type: "interactive",
+        duration: "28 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "How industry changed the world",
+      },
+    ],
+  },
+  {
+    id: "geography",
+    name: "Geography",
+    emoji: "🌍",
+    color: "bg-emerald-500",
+    progress: 20,
+    totalLessons: 15,
+    completedLessons: 3,
+    xp: 90,
+    materials: [
+      {
+        id: "geo-1",
+        title: "World Continents and Oceans",
+        type: "interactive",
+        duration: "18 min",
+        difficulty: "easy",
+        completed: true,
+        locked: false,
+        description: "Learn about Earth's major landmasses and water bodies",
+      },
+      {
+        id: "geo-2",
+        title: "Climate and Weather Patterns",
+        type: "video",
+        duration: "24 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Understanding global climate systems",
+      },
+      {
+        id: "geo-3",
+        title: "Natural Disasters",
+        type: "document",
+        duration: "20 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Types and causes of natural disasters",
+      },
+      {
+        id: "geo-4",
+        title: "Map Reading Skills",
+        type: "interactive",
+        duration: "25 min",
+        difficulty: "easy",
+        completed: false,
+        locked: false,
+        description: "Master the art of reading and interpreting maps",
+      },
+    ],
+  },
+  {
+    id: "computer-science",
+    name: "Computer Science",
+    emoji: "💻",
+    color: "bg-indigo-500",
+    progress: 10,
+    totalLessons: 20,
+    completedLessons: 2,
+    xp: 60,
+    materials: [
+      {
+        id: "cs-1",
+        title: "Introduction to Programming",
+        type: "video",
+        duration: "25 min",
+        difficulty: "easy",
+        completed: true,
+        locked: false,
+        description: "Learn the basics of computer programming",
+      },
+      {
+        id: "cs-2",
+        title: "Python Fundamentals",
+        type: "interactive",
+        duration: "35 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Start coding with Python programming language",
+      },
+      {
+        id: "cs-3",
+        title: "Web Development Basics",
+        type: "document",
+        duration: "30 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "HTML, CSS, and JavaScript fundamentals",
+      },
+      {
+        id: "cs-4",
+        title: "Algorithm Thinking",
+        type: "video",
+        duration: "22 min",
+        difficulty: "medium",
+        completed: false,
+        locked: false,
+        description: "Learn to think algorithmically and solve problems",
+      },
+      {
+        id: "cs-5",
+        title: "Data Structures",
+        type: "interactive",
+        duration: "40 min",
+        difficulty: "hard",
+        completed: false,
+        locked: true,
+        description: "Understanding arrays, lists, and trees",
+      },
     ],
   },
 ]
@@ -189,11 +484,21 @@ interface SubjectManagerProps {
 }
 
 export function SubjectManager({ onReviewMaterial }: SubjectManagerProps) {
-  const { progress, finishLesson, addXP } = useFirestoreProgress()
+  const { user } = useAuth()
+  const { progress, finishLesson, addXP } = useFirestoreProgress(user?.uid)
   const { toast } = useToast()
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [reviewingMaterial, setReviewingMaterial] = useState<StudyMaterial | null>(null)
+
+  // Debug progress data
+  useEffect(() => {
+    console.log('SubjectManager: Progress data:', {
+      progress,
+      userId: user?.uid,
+      hasProgress: !!progress
+    });
+  }, [progress, user?.uid]);
 
   const handleStartMaterial = async (material: StudyMaterial, subject: Subject) => {
     if (material.locked) {
@@ -227,13 +532,30 @@ export function SubjectManager({ onReviewMaterial }: SubjectManagerProps) {
     setTimeout(async () => {
       const xpGained = material.difficulty === "easy" ? 15 : material.difficulty === "medium" ? 25 : 35
 
-      await finishLesson(subject.id, xpGained)
-      await addXP(xpGained)
+      console.log('SubjectManager: Completing lesson:', {
+        subject: subject.id,
+        xpGained,
+        material: material.title
+      });
 
-      toast({
-        title: "Material Completed! 🎉",
-        description: `You earned ${xpGained} XP! Keep up the great work!`,
-      })
+      try {
+        await finishLesson(subject.id, xpGained)
+        await addXP(xpGained)
+
+        toast({
+          title: "Material Completed! 🎉",
+          description: `You earned ${xpGained} XP! Keep up the great work!`,
+        })
+        
+        console.log('SubjectManager: Lesson completed successfully');
+      } catch (error) {
+        console.error('SubjectManager: Error completing lesson:', error);
+        toast({
+          title: "Error 😞",
+          description: "Failed to save progress. Please try again.",
+          variant: "destructive",
+        })
+      }
     }, 2000)
   }
 
@@ -269,7 +591,29 @@ export function SubjectManager({ onReviewMaterial }: SubjectManagerProps) {
     }
   }
 
-  const filteredSubjects = subjects.filter(
+  // Create dynamic subjects based on Firestore progress data
+  const dynamicSubjects: Subject[] = progress ? 
+    Object.entries(progress.subjects).map(([key, data]) => {
+      const baseSubject = subjects.find(s => s.id === key) || {
+        id: key,
+        name: key.charAt(0).toUpperCase() + key.slice(1),
+        emoji: key === "mathematics" ? "🧮" : key === "science" ? "🔬" : key === "english" ? "📚" : "🏛️",
+        color: key === "mathematics" ? "bg-blue-500" : key === "science" ? "bg-green-500" : key === "english" ? "bg-purple-500" : "bg-orange-500",
+        materials: []
+      };
+      
+      return {
+        ...baseSubject,
+        progress: data.progress,
+        xp: data.xp,
+        completedLessons: data.lessonsCompleted,
+        totalLessons: data.lessonsCompleted + Math.max(1, 20 - data.lessonsCompleted), // Dynamic total based on completed
+      };
+    }) : subjects; // Fall back to static subjects if no progress data
+
+  console.log('SubjectManager: Using subjects:', dynamicSubjects);
+
+  const filteredSubjects = dynamicSubjects.filter(
     (subject) =>
       subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.materials.some((material) => material.title.toLowerCase().includes(searchTerm.toLowerCase())),
@@ -556,6 +900,23 @@ export function SubjectManager({ onReviewMaterial }: SubjectManagerProps) {
                     {subject.materials.filter((m) => m.type === "audio").length} Audio
                   </div>
                 </div>
+                {/* Debug button to test progress updates */}
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    finishLesson(subject.id, 25);
+                    addXP(25);
+                    toast({
+                      title: "Progress Updated! 🎉",
+                      description: `Added 25 XP to ${subject.name}`,
+                    });
+                  }}
+                  className="w-full"
+                >
+                  Test +25 XP
+                </Button>
               </div>
             </CardContent>
           </Card>

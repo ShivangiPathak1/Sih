@@ -365,15 +365,15 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
       <Card className="w-full">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Math Challenge</CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="font-medium">Score: {score}</div>
-              <div className="h-8 w-px bg-border mx-2"></div>
-              <div className="text-sm text-muted-foreground">
-                Time: <span className="font-medium">{timeLeft}s</span>
-              </div>
+          <CardTitle>Math Challenge</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="font-medium">Score: {score}</div>
+            <div className="h-8 w-px bg-border mx-2"></div>
+            <div className="text-sm text-muted-foreground">
+              Time: <span className="font-medium">{timeLeft}s</span>
             </div>
           </div>
+        </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="text-center space-y-2">
@@ -406,14 +406,6 @@ export function MathChallengeGame({ onComplete, onBack }: MathChallengeGameProps
                 )}
               </Button>
             ))}
-          </div>
-          
-          <div className="pt-4">
-            <div className="flex justify-between text-sm text-muted-foreground mb-1">
-              <span>Progress</span>
-              <span>{problemCount + 1} of {totalProblems} problems</span>
-            </div>
-            <Progress value={((problemCount) / totalProblems) * 100} className="h-2" />
           </div>
         </CardContent>
       </Card>
