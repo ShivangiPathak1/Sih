@@ -141,11 +141,6 @@ export function StudentsDetail() {
     { name: "Rural", students: Math.floor(studentData.total * 0.398), percentage: 39.8 },
   ]
 
-  const handleExport = () => {
-    // Export functionality
-    console.log("Exporting students data...")
-  }
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
