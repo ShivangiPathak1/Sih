@@ -118,13 +118,13 @@ export default function StudentDashboard() {
         subject: key.charAt(0).toUpperCase() + key.slice(1),
         completed: data.lessonsCompleted,
         total: data.lessonsCompleted + Math.floor(Math.random() * 20) + 10,
-        accuracy: Math.min(95, 75 + Math.floor(data.xp / 10)),
-        timeSpent: data.lessonsCompleted * 15,
+        accuracy: Math.floor(Math.random() * 20) + 80,
+        timeSpent: Math.floor(Math.random() * 100) + 50,
       }))
     : []
 
   const [challenges, setChallenges] = useState<Challenge[]>([
-    { id: "1", task: "Complete 3 Math quizzes", xp: 50, completed: false, emoji: "🧮" },
+    { id: "1", task: "Complete 3 Math exercises", xp: 50, completed: false, emoji: "🧮" },
     { id: "2", task: "Read 2 Science chapters", xp: 30, completed: true, emoji: "🔬" },
     { id: "3", task: "Practice English vocabulary", xp: 25, completed: false, emoji: "📚" },
   ])
@@ -172,19 +172,24 @@ export default function StudentDashboard() {
   ])
 
   const [totalXPValue, setTotalXP] = useState(progress?.xp || 0)
-  const [subjectsData, setSubjects] = useState(subjects)
 
   useEffect(() => {
-    let interval: NodeJS.Timeout
+    if (progress?.xp) {
+      setTotalXP(progress.xp)
+    }
+  }, [progress])
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null
     if (isTimerRunning && pomodoroTime > 0) {
       interval = setInterval(() => {
-        setPomodoroTime((time) => time - 1)
+        setPomodoroTime((prevTime) => prevTime - 1)
       }, 1000)
-    } else if (pomodoroTime === 0) {
+    } else if (isTimerRunning && pomodoroTime === 0) {
       setIsTimerRunning(false)
       toast({
-        title: "🎉 Focus Session Complete!",
-        description: "Great job! You earned 10 XP for completing your focus session.",
+        title: "🍅 Pomodoro Complete!",
+        description: "Great focus session! Take a well-deserved break.",
       })
       setTotalXP((prev) => prev + 10)
       setPomodoroTime(25 * 60)
@@ -215,18 +220,15 @@ export default function StudentDashboard() {
     const quiz = quizzes.find((q) => q.id === quizId)
     if (quiz && !quiz.completed) {
       const xpEarned = quiz.difficulty === "Easy" ? 25 : quiz.difficulty === "Medium" ? 50 : 75
-
       await finishQuiz({
         quizId: quiz.id,
         subject: "general",
         score: Math.floor(Math.random() * 3) + 8, // 8-10 score
         totalQuestions: quiz.questions,
-        timeSpent: Number.parseInt(quiz.time) * 60,
+        timeSpent: parseInt(quiz.time) * 60,
         xpEarned,
       })
-
       setQuizzes((prev) => prev.map((q) => (q.id === quizId ? { ...q, completed: true } : q)))
-
       toast({
         title: "🎯 Quiz Completed!",
         description: `Great job! You earned ${xpEarned} XP!`,
@@ -273,19 +275,16 @@ export default function StudentDashboard() {
         title: `${subject.emoji} Continuing ${subject.subject}`,
         description: `Let's pick up where you left off!`,
       })
-
       // Simulate progress increase and update Firestore
       setTimeout(async () => {
         try {
           const xpGained = 15
           await finishLesson(subjectId, xpGained)
           await addXP(xpGained)
-
           setSubjects((prev) =>
             prev.map((s) => (s.id === subjectId ? { ...s, progress: Math.min(100, s.progress + 5) } : s)),
           )
           setTotalXP((prev) => prev + xpGained)
-
           toast({
             title: "📈 Progress Updated!",
             description: `You earned ${xpGained} XP for studying ${subject.subject}!`,
@@ -582,7 +581,6 @@ export default function StudentDashboard() {
                 Comprehensive insights into your learning journey with visual analytics 📈
               </p>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-3 space-y-6">
                 {/* Weekly Progress Chart */}
@@ -859,11 +857,11 @@ export default function StudentDashboard() {
                           size="sm"
                           className="flex-1 bg-transparent"
                           onClick={() => {
-                            setPomodoroTime(5 * 60)
+                            setPomodoroTime(45 * 60)
                             setIsTimerRunning(false)
                           }}
                         >
-                          5 min ☕
+                          45 min 📚
                         </Button>
                       </div>
                     </div>
@@ -872,7 +870,7 @@ export default function StudentDashboard() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">📝 Today's Tasks</CardTitle>
+                    <CardTitle>📝 Today's Tasks</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {[
@@ -905,7 +903,6 @@ export default function StudentDashboard() {
             </div>
           </div>
         )
-
       case "support":
         return (
           <div className="space-y-6">
@@ -1089,22 +1086,24 @@ export default function StudentDashboard() {
                 { id: "games", label: "Games", icon: Gamepad2 },
                 { id: "progress", label: "Progress", icon: BarChart3 },
                 { id: "schedule", label: "Schedule", icon: Calendar },
-                { id: "ai-mentor", label: "AI Mentor", icon: Brain },
-                { id: "profile", label: "Profile", icon: User },
-                { id: "settings", label: "Settings", icon: Settings },
                 { id: "support", label: "Support", icon: HelpCircle },
-              ].map((item) => (
-                <Button
-                  key={item.id}
-                  variant={currentPage === item.id ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setCurrentPage(item.id as StudentPage)}
-                  className="flex items-center gap-2"
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="hidden md:inline">{item.label}</span>
-                </Button>
-              ))}
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setCurrentPage(item.id as StudentPage)}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      currentPage === item.id
+                        ? "border-primary text-primary"
+                        : "border-transparent text-foreground hover:text-primary"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </button>
+                )
+              })}
             </nav>
           </div>
         </div>
